@@ -7,4 +7,9 @@ export interface CsvLensTestApi {
   messages(uri: vscode.Uri): HostMessage[];
   /** Webview から届いたものとしてメッセージを渡す */
   send(uri: vscode.Uri, message: WebviewMessage): Promise<void>;
+  /**
+   * その URI の Webview からのメッセージを受け取らない。テストが送るメッセージと競合させないため。
+   * 例えば Webview は init を受け取ると cancelFind を送るので、テストが始めた検索を止めてしまう
+   */
+  ignoreWebview(uri: vscode.Uri): void;
 }

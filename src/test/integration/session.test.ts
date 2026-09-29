@@ -28,6 +28,21 @@ async function waitFor<T>(find: () => T | undefined, message: string, timeout = 
   }
 }
 
+/** find で見つかるまで action を繰り返す。ファイルの監視は、開いた直後にはまだ始まっていないことがある */
+async function retryUntil<T>(action: () => void, find: () => T | undefined, message: string) {
+  const start = Date.now();
+  for (;;) {
+    action();
+    try {
+      return await waitFor(find, message, 1_000);
+    } catch (error) {
+      if (Date.now() - start > 15_000) {
+        throw error;
+      }
+    }
+  }
+}
+
 function lastOf<T extends HostMessage['type']>(
   messages: HostMessage[],
   type: T
@@ -41,7 +56,8 @@ suite('CSV Lens のエディタ', () => {
   let testApi: CsvLensTestApi;
 
   suiteSetup(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-'));
+    // macOS の一時ディレクトリはシンボリックリンク（/var → /private/var）なので、実体のパスで監視する
+    dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-')));
     testApi = await api();
   });
 
@@ -145,8 +161,11 @@ suite('CSV Lens のエディタ', () => {
   test('表示中にファイルが変わったら知らせ、再読み込みで新しい内容を送る', async () => {
     const uri = await open('changing.csv', 'a,b\n1,2\n');
     const before = await init(uri);
-    fs.writeFileSync(uri.fsPath, 'a,b\n1,2\n3,4\n');
-    await waitFor(() => lastOf(testApi.messages(uri), 'fileChanged'), 'fileChanged');
+    await retryUntil(
+      () => fs.writeFileSync(uri.fsPath, 'a,b\n1,2\n3,4\n'),
+      () => lastOf(testApi.messages(uri), 'fileChanged'),
+      'fileChanged'
+    );
     await testApi.send(uri, { type: 'reload' });
     const after = await waitFor(() => {
       const latest = lastOf(testApi.messages(uri), 'init');
@@ -166,6 +185,7 @@ suite('CSV Lens のエディタ', () => {
     for (let i = 1; i <= 5000; i++) {
       text += i + ',name' + i + '\n';
     }
+    testApi.ignoreWebview(vscode.Uri.file(path.join(dir, 'find.csv')));
     const uri = await open('find.csv', text);
     await init(uri);
     await testApi.send(uri, {

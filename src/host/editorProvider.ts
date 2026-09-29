@@ -20,6 +20,8 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
   private readonly sessions = new Map<string, CsvSession>();
   /** テストの実行時だけ、送ったメッセージを記録する */
   private readonly messageLog: Map<string, HostMessage[]> | undefined;
+  /** テストの実行時だけ使う。Webview からのメッセージを受け取らない URI */
+  private readonly ignoredWebviews = new Set<string>();
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -50,7 +52,9 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
     this.sessions.set(key, session);
     const disposables: vscode.Disposable[] = [
       panel.webview.onDidReceiveMessage((message: WebviewMessage) => {
-        void session.handle(message);
+        if (!this.ignoredWebviews.has(key)) {
+          void session.handle(message);
+        }
       }),
       this.watch(uri, () => session.fileChanged()),
       panel.onDidChangeViewState(() => {
@@ -140,6 +144,9 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
           throw new Error('Not open: ' + uri.toString());
         }
         await session.handle(message);
+      },
+      ignoreWebview: (uri) => {
+        this.ignoredWebviews.add(uri.toString());
       },
     };
   }

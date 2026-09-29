@@ -1,14 +1,19 @@
 import { ByteSource } from './byteSource';
 
+/** メモリ上のバイト列。テストと、file 以外のスキーム（全体を読み込んだもの）に使う */
 export class MemorySource implements ByteSource {
   constructor(private readonly bytes: Uint8Array) {}
+
   get size(): number {
-    throw new Error('not implemented');
+    return this.bytes.length;
   }
-  read(_offset: number, _length: number): Promise<Uint8Array> {
-    throw new Error('not implemented');
+
+  read(offset: number, length: number): Promise<Uint8Array> {
+    const end = Math.min(offset + length, this.bytes.length);
+    return Promise.resolve(this.bytes.subarray(Math.min(offset, end), end));
   }
+
   close(): Promise<void> {
-    throw new Error('not implemented');
+    return Promise.resolve();
   }
 }

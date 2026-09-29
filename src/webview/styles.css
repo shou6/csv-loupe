@@ -397,3 +397,64 @@ button.toggle {
 .find-item.current .find-column {
   color: inherit;
 }
+
+.find-row-bar {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.find-row-bar .find-bar {
+  flex-basis: auto;
+}
+
+.goto {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.goto-input {
+  width: 110px;
+  padding: 3px 6px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  font: inherit;
+}
+
+.goto-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 10px;
+  color: var(--vscode-descriptionForeground);
+  border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.status-bar .strong {
+  color: var(--vscode-foreground);
+}
+
+button.link {
+  padding: 0;
+  color: var(--vscode-textLink-foreground);
+  background: transparent;
+  border: none;
+}
+
+button.link:hover {
+  text-decoration: underline;
+  background: transparent;
+}

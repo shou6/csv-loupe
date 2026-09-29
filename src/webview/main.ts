@@ -3,6 +3,7 @@ import { formatRecord } from '../core/csv/format';
 import { ContextCommand, HostMessage, InitMessage, RowData } from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
+import { parseRowInput, tailStart } from '../core/view/navigation';
 import { el } from './dom';
 import { CellPosition, GridView } from './grid';
 import { FindPanel } from './findPanel';
@@ -49,6 +50,78 @@ let t: Translate = createTranslator(undefined);
 const app = document.getElementById('app') as HTMLElement;
 const toolbar = el('div', { className: 'toolbar' });
 const banners = el('div', { className: 'banners' });
+const statusBar = el('div', { className: 'status-bar' });
+const goToInput = el('input', {
+  className: 'goto-input',
+  attrs: { type: 'text', inputmode: 'numeric', spellcheck: 'false' },
+  on: {
+    keydown: (event) => {
+      if ((event as KeyboardEvent).key === 'Enter') {
+        event.preventDefault();
+        goToRow(goToInput.value);
+      }
+    },
+  },
+});
+
+/** 選んだ行の Row と Source Line（元のファイルの行）を出す */
+function renderStatus(): void {
+  const selected = state.selected;
+  const data = selected ? cache.get(selected.row) : undefined;
+  if (!selected || !data || !state.init) {
+    statusBar.replaceChildren(el('span', { text: t('Select a cell to see its position.') }));
+    return;
+  }
+  const column =
+    selected.column < state.init.header.length
+      ? state.init.header[selected.column]
+      : t('(column {0})', String(selected.column + 1));
+  statusBar.replaceChildren(
+    el('span', { className: 'strong', text: t('Row {0}', data.row.toLocaleString('en-US')) }),
+    el('span', { text: t('Source Line {0}', data.line.toLocaleString('en-US')) }),
+    el('span', { text: column }),
+    el('button', {
+      className: 'link',
+      text: t('Open Source at Row'),
+      on: { click: () => post({ type: 'openSource', line: data.line }) },
+    })
+  );
+}
+
+/** 行数を数え終える前は使えない操作の案内 */
+function countingNotice(): void {
+  showNotice(t('Available after row counting finishes.'));
+}
+
+function goToRow(text: string): void {
+  const result = parseRowInput(text, state.rowsCounted, state.countDone);
+  if ('error' in result) {
+    if (result.error === 'counting') {
+      countingNotice();
+    } else if (result.error === 'outOfRange') {
+      showNotice(t('Enter a row number from 1 to {0}.', state.rowsCounted.toLocaleString('en-US')));
+    } else {
+      showNotice(t('Enter a row number.'));
+    }
+    return;
+  }
+  jumpTo(result.row, state.selected?.column ?? 0);
+}
+
+/** 末尾へ移る。All 以外の表示行数のときは、末尾から表示行数ぶんを表示する */
+function tail(): void {
+  if (!state.countDone) {
+    countingNotice();
+    return;
+  }
+  showNotice(undefined);
+  if (state.peekSize === 0) {
+    grid.scrollToIndex(Math.max(0, state.rowsCounted - 1));
+  } else {
+    state.peekStart = tailStart(state.rowsCounted, state.peekSize);
+    grid.scrollToIndex(0);
+  }
+}
 const recordView = new RecordView(() => {
   recordView.hide();
   renderToolbar();
@@ -98,6 +171,7 @@ const grid = new GridView(
       state.selected = cell;
       grid.refresh();
       renderRecord();
+      renderStatus();
     },
   }
 );
@@ -137,6 +211,7 @@ function jumpTo(row: number, column: number): void {
   grid.revealIndex(index);
   grid.revealColumn(column);
   renderRecord();
+  renderStatus();
 }
 
 function requestRows(from: number, count: number): void {
@@ -190,6 +265,13 @@ function runContextCommand(command: ContextCommand, cell: CellPosition): void {
     case 'openRecordView':
       openRecordView();
       break;
+    case 'openSourceAtRow': {
+      const line = cache.get(cell.row)?.line;
+      if (line !== undefined) {
+        post({ type: 'openSource', line });
+      }
+      break;
+    }
     case 'findSameValue': {
       const value = cache.get(cell.row)?.cells[cell.column];
       if (value !== undefined) {
@@ -202,6 +284,7 @@ function runContextCommand(command: ContextCommand, cell: CellPosition): void {
   }
   grid.refresh();
   renderRecord();
+  renderStatus();
 }
 
 function setPeekSize(size: number): void {
@@ -271,10 +354,22 @@ function renderToolbar(): void {
       },
     },
   });
+  goToInput.placeholder = t('Go to Row');
+  goToInput.setAttribute('aria-label', t('Go to Row'));
+  const tailButton = el('button', {
+    text: t('Tail'),
+    title: t('Show the last rows'),
+    on: { click: () => tail() },
+  });
   toolbar.replaceChildren(
     info,
     el('div', { className: 'controls' }, sizes, wrap, record),
-    findPanel.bar
+    el(
+      'div',
+      { className: 'find-row-bar' },
+      findPanel.bar,
+      el('div', { className: 'goto' }, goToInput, tailButton)
+    )
   );
   findPanel.render();
 }
@@ -319,6 +414,7 @@ function onInit(message: InitMessage): void {
     grid.scrollToIndex(0);
   }
   renderRecord();
+  renderStatus();
 }
 
 function onMessage(message: HostMessage): void {
@@ -349,6 +445,7 @@ function onMessage(message: HostMessage): void {
       queued = undefined;
       grid.refresh();
       renderRecord();
+      renderStatus();
       if (next && !inFlight) {
         requestRows(next.from, next.count);
       }
@@ -392,8 +489,10 @@ app.replaceChildren(
   toolbar,
   banners,
   el('div', { className: 'main' }, grid.element, recordView.element),
-  findPanel.results
+  findPanel.results,
+  statusBar
 );
+renderStatus();
 onHostMessage(onMessage);
 renderBanners();
 post({ type: 'ready' });

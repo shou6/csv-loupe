@@ -32,5 +32,13 @@
   "{0} matches": "{0} 件",
   "(searching… {0}%)": "（検索中… {0}%）",
   "(list shows the first {0})": "（一覧は先頭の {0} 件）",
-  "Row {0} can be shown after row counting finishes.": "行 {0} は、行数を数え終えると表示できます。"
+  "Row {0} can be shown after row counting finishes.": "行 {0} は、行数を数え終えると表示できます。",
+  "Select a cell to see its position.": "セルを選ぶと、その位置を表示します。",
+  "Open Source at Row": "元のファイルの該当行を開く",
+  "Available after row counting finishes.": "行数を数え終えると使えます。",
+  "Enter a row number from 1 to {0}.": "1 から {0} までの行番号を入れてください。",
+  "Enter a row number.": "行番号を入れてください。",
+  "Go to Row": "行へ移動",
+  "Tail": "末尾",
+  "Show the last rows": "末尾の行を表示"
 }

@@ -1,4 +1,9 @@
 {
-  "description": "Visual Studio Code の拡張機能。",
-  "command.helloWorld": "Hello World"
+  "description": "大容量のものも含め、CSV と TSV の中身を素早く確認するための読み取り専用のビューア。",
+  "editor.displayName": "CSV Loupe",
+  "command.copyCell": "セルをコピー",
+  "command.copyRow": "行をコピー",
+  "command.findSameValue": "同じ値を検索",
+  "command.openRecordView": "レコード表示を開く",
+  "command.openSourceAtRow": "元のファイルの該当行を開く"
 }

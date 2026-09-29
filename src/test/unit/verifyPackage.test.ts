@@ -6,7 +6,7 @@ const COMMON = ['package.json', 'README.md', 'LICENSE', 'resources/icon.png'];
 suite('parseVsceLs', () => {
   test('vsce ls の出力から、ファイルの一覧だけを取り出す', () => {
     const output = [
-      '> csv-lens@0.0.1 vscode:prepublish',
+      '> csv-loupe@0.1.0 vscode:prepublish',
       '> npm run package',
       '',
       ' INFO  Files included in the VSIX:',
@@ -61,6 +61,28 @@ suite('checkPackageFiles', () => {
       unexpected: ['logs/run.log', 'src/extension.ts'],
       missing: [],
     });
+  });
+
+  test('files にワイルドカードなしで書いた dist のファイルは、入ってよく、必須', () => {
+    const manifest = {
+      main: './dist/extension.js',
+      files: ['dist/extension.js', 'dist/worker.js', 'dist/webview.css', 'resources/**'],
+    };
+    assert.deepStrictEqual(
+      checkPackageFiles(
+        [...COMMON, 'dist/extension.js', 'dist/worker.js', 'dist/webview.css'],
+        manifest
+      ),
+      { unexpected: [], missing: [] }
+    );
+    assert.deepStrictEqual(checkPackageFiles([...COMMON, 'dist/extension.js'], manifest), {
+      unexpected: [],
+      missing: ['dist/worker.js', 'dist/webview.css'],
+    });
+    assert.deepStrictEqual(
+      checkPackageFiles([...COMMON, 'dist/extension.js', 'dist/extension.js.map'], manifest),
+      { unexpected: ['dist/extension.js.map'], missing: ['dist/worker.js', 'dist/webview.css'] }
+    );
   });
 
   test('必須のファイル（package.json、README、LICENSE、アイコン）が無ければ知らせる', () => {

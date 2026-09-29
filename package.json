@@ -173,7 +173,6 @@
     "test:integration:local": "node scripts/test-integration-local.js",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "verify:package": "npm run compile-tests && node scripts/verify-package.js",
-    "icon": "node scripts/generate-icon.js",
     "bench": "npm run compile-tests && node scripts/bench.js"
   },
   "devDependencies": {

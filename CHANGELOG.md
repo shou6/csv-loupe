@@ -20,6 +20,7 @@ Initial release.
 - Showing and hiding columns from the column list.
 - CSV Lens trims leading and trailing spaces in cell values and shows a marker in their place.
 - Find across the whole file with a list of matches by Row and column, and Find Same Value. Clear the search with the × button or Esc.
-- Record View, Go to Row, Tail, and Open Source at Row.
+- Record View, also opened by double-clicking a cell.
+- Go to Row, Tail, and Open Source at Row.
 - Notice with a reload button when the file changes on disk.
 - Own color scheme with a teal accent and alternating row colors, following the light or dark theme. High contrast themes use the theme colors.

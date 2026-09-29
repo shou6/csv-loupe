@@ -46,6 +46,8 @@ export interface GridSource {
 
 export interface GridEvents {
   onSelect(cell: CellPosition): void;
+  /** セルをダブルクリックしたとき（レコード表示を開く） */
+  onOpen(cell: CellPosition): void;
   /** 見出しをクリックしたとき（ソートの切り替え） */
   onHeaderClick(column: number): void;
 }
@@ -375,6 +377,11 @@ export class GridView {
     if (event.type === 'mousedown' && event.button !== 0) {
       return;
     }
-    this.events.onSelect({ row: Number(td.dataset.row), column: Number(td.dataset.column) });
+    const cell = { row: Number(td.dataset.row), column: Number(td.dataset.column) };
+    this.events.onSelect(cell);
+    // 選ぶと行を描き直して要素が入れ替わり、dblclick が届かない。2 回目の mousedown で判定する
+    if (event.type === 'mousedown' && event.detail === 2) {
+      this.events.onOpen(cell);
+    }
   }
 }

@@ -231,6 +231,8 @@ const grid = new GridView(
       renderRecord();
       renderStatus();
     },
+    // 直前の onSelect でセルを選んでいるので、開くだけでよい
+    onOpen: () => openRecordView(),
     onHeaderClick: (column) => toggleSort(column),
   }
 );

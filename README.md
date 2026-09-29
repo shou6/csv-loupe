@@ -33,6 +33,7 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 
 - `Ctrl+F` (`Cmd+F`) moves to the Find box. `Enter` and `Shift+Enter` move to the next and previous match.
 - `Ctrl+C` (`Cmd+C`) copies the selected cell.
+- Double-click a cell to open **Record View** for its row.
 - To edit the file as text, run **View: Reopen Editor With...** and choose **Text Editor**.
 
 ## Notes

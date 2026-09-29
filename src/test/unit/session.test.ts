@@ -402,6 +402,50 @@ suite('CsvSession', () => {
     await session.dispose();
   });
 
+  test('ソートすると、並べ替えた順の行を表示の位置と一緒に返し、Row の位置を答える', async () => {
+    const env = new FakeEnvironment(utf8('id,score\n1,30\n2,10\n3,20\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'sort', sortId: 1, column: 1, direction: 'asc' });
+    await waitUntil(() => env.of('sortState').some((m) => m.status === 'done'), 'ソートを終える');
+    assert.deepStrictEqual(
+      env.of('sortState').map((m) => m.status),
+      ['sorting', 'done']
+    );
+    await session.handle({ type: 'requestRows', requestId: 5, from: 1, count: 3, sortId: 1 });
+    const rows = env.of('rows')[0];
+    assert.deepStrictEqual(
+      rows.rows.map((r) => r.row),
+      [2, 3, 1]
+    );
+    assert.deepStrictEqual(rows.positions, [1, 2, 3]);
+    await session.handle({ type: 'locateRow', requestId: 6, row: 1 });
+    assert.deepStrictEqual(env.of('rowLocated')[0], {
+      type: 'rowLocated',
+      generation: env.lastInit().generation,
+      requestId: 6,
+      row: 1,
+      position: 3,
+    });
+    await session.handle({ type: 'sort', sortId: 2, column: 1, direction: null });
+    assert.strictEqual(env.of('sortState').pop()?.status, 'cleared');
+    await session.handle({ type: 'locateRow', requestId: 7, row: 1 });
+    assert.strictEqual(env.of('rowLocated').pop()?.position, 1);
+    await session.dispose();
+  });
+
+  test('行数を数え終える前や、行数が上限を超えるときはソートしない', async () => {
+    const env = new FakeEnvironment(utf8(csv(1000)));
+    const session = new CsvSession(env, { sortLimit: 500 });
+    await session.start();
+    await session.handle({ type: 'sort', sortId: 1, column: 1, direction: 'asc' });
+    assert.strictEqual(env.of('sortState')[0].status, 'counting');
+    await waitUntil(() => countDone(env), '行数を数え終える');
+    await session.handle({ type: 'sort', sortId: 2, column: 1, direction: 'asc' });
+    assert.strictEqual(env.of('sortState')[1].status, 'tooLarge');
+    await session.dispose();
+  });
+
   test('ファイルの変更を知らせる', async () => {
     const env = new FakeEnvironment(utf8(csv(1)));
     const session = new CsvSession(env);

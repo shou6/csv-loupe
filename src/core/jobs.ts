@@ -1,7 +1,8 @@
 import { CsvFormat } from './csv/types';
 import { buildIndex, IndexProgress } from './index/buildIndex';
-import { FindQuery } from './protocol';
+import { FindQuery, SortDirection } from './protocol';
 import { searchRecords, SearchProgress } from './search/searcher';
+import { sortRows } from './sort/sorter';
 import { ByteSource } from './source/byteSource';
 
 /** 時間のかかる処理。本番では Worker で、テストと file 以外のスキームではその場で動かす */
@@ -14,11 +15,20 @@ export type Job =
       limit: number;
       /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
       firstDataRecord: number;
+    }
+  | {
+      kind: 'sort';
+      format: CsvFormat;
+      column: number;
+      direction: SortDirection;
+      firstDataRecord: number;
     };
 
 export type JobMessage =
   | { kind: 'indexProgress'; progress: IndexProgress }
   | { kind: 'searchProgress'; progress: SearchProgress }
+  /** 並べ替えた順の Row（1 始まり） */
+  | { kind: 'sortResult'; rows: number[] }
   | { kind: 'error'; message: string };
 
 export interface JobHandle {
@@ -68,6 +78,20 @@ export async function runJob(
         onProgress: (progress) => post({ kind: 'searchProgress', progress }),
       });
       break;
+    case 'sort': {
+      const rows = await sortRows(
+        source,
+        job.format,
+        job.column,
+        job.direction,
+        job.firstDataRecord,
+        shouldStop
+      );
+      if (rows) {
+        post({ kind: 'sortResult', rows });
+      }
+      break;
+    }
   }
 }
 

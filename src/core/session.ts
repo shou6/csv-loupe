@@ -12,6 +12,9 @@ import {
   FindQuery,
   HostMessage,
   InitMessage,
+  RowData,
+  SortDirection,
+  SortStatus,
   WebviewMessage,
 } from './protocol';
 import { readHead, readRows, shapeInitial } from './read/rowReader';
@@ -25,6 +28,8 @@ const HEAD_SIZE = 64 * 1024;
 const MAX_ROWS_PER_REQUEST = 1000;
 /** 検索の一覧に入れる一致の上限 */
 export const FIND_LIMIT = 10_000;
+/** ソートできる行数の上限 */
+export const SORT_LIMIT = 1_000_000;
 
 /** セッションが頼る外側の機能。拡張機能ホストでは vscode の API で、テストではフェイクで実装する */
 export interface SessionEnvironment {
@@ -52,6 +57,39 @@ interface Loaded {
   rowsCounted: number;
   countDone: boolean;
   init: InitMessage;
+  /** ソート中の順序。order[i] は表示の位置 i + 1 の Row、position[r - 1] は Row r の表示の位置 */
+  sort?: { column: number; direction: SortDirection; order: Uint32Array; position: Uint32Array };
+}
+
+/** 近い Row をまとめて読むときの、1 回で読む範囲の上限 */
+const GROUP_SPAN = 128;
+
+/** 指定した Row（順不同）を読む。近いもの同士はまとめて読む */
+async function readRowsAt(loaded: Loaded, rows: number[]): Promise<Map<number, RowData>> {
+  const sorted = [...new Set(rows)].sort((a, b) => a - b);
+  const result = new Map<number, RowData>();
+  let i = 0;
+  while (i < sorted.length) {
+    const start = sorted[i];
+    let end = start;
+    while (i + 1 < sorted.length && sorted[i + 1] - start < GROUP_SPAN) {
+      end = sorted[++i];
+    }
+    i++;
+    const read = await readRows(
+      loaded.source,
+      loaded.format,
+      loaded.index,
+      start,
+      end - start + 1,
+      loaded.rowsCounted,
+      loaded.firstDataRecord
+    );
+    for (const row of read) {
+      result.set(row.row, row);
+    }
+  }
+  return result;
 }
 
 /**
@@ -63,12 +101,16 @@ export class CsvSession {
   private loaded: Loaded | undefined;
   private indexJob: JobHandle | undefined;
   private searchJob: JobHandle | undefined;
+  private sortJob: JobHandle | undefined;
   /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
   private headerChoice: boolean | undefined;
 
-  constructor(private readonly env: SessionEnvironment) {}
+  constructor(
+    private readonly env: SessionEnvironment,
+    private readonly options: { sortLimit?: number } = {}
+  ) {}
 
   start(): Promise<void> {
     return this.load();
@@ -85,7 +127,9 @@ export class CsvSession {
           }
           break;
         case 'requestRows':
-          if (loaded) {
+          if (loaded && message.sortId !== undefined) {
+            await this.sendSortedRows(loaded, message.requestId, message.from, message.count);
+          } else if (loaded) {
             const rows = await readRows(
               loaded.source,
               loaded.format,
@@ -108,6 +152,23 @@ export class CsvSession {
         case 'find':
           if (loaded) {
             this.find(loaded, message.searchId, message.query);
+          }
+          break;
+        case 'sort':
+          if (loaded) {
+            this.sort(loaded, message.sortId, message.column, message.direction);
+          }
+          break;
+        case 'locateRow':
+          if (loaded) {
+            const position = loaded.sort ? loaded.sort.position[message.row - 1] : message.row;
+            this.env.post({
+              type: 'rowLocated',
+              generation: loaded.generation,
+              requestId: message.requestId,
+              row: message.row,
+              position: position ?? message.row,
+            });
           }
           break;
         case 'cancelFind':
@@ -168,6 +229,107 @@ export class CsvSession {
     this.indexJob = undefined;
     this.searchJob?.cancel();
     this.searchJob = undefined;
+    this.sortJob?.cancel();
+    this.sortJob = undefined;
+  }
+
+  /** ソート中の表示の位置 from から count 行を、位置と一緒に送る */
+  private async sendSortedRows(
+    loaded: Loaded,
+    requestId: number,
+    from: number,
+    count: number
+  ): Promise<void> {
+    const order = loaded.sort?.order;
+    const positions: number[] = [];
+    const wanted: number[] = [];
+    if (order) {
+      const last = Math.min(from + Math.min(count, MAX_ROWS_PER_REQUEST) - 1, order.length);
+      for (let position = Math.max(1, from); position <= last; position++) {
+        positions.push(position);
+        wanted.push(order[position - 1]);
+      }
+    }
+    const read = await readRowsAt(loaded, wanted);
+    if (loaded !== this.loaded) {
+      return;
+    }
+    const rows: RowData[] = [];
+    const found: number[] = [];
+    wanted.forEach((row, i) => {
+      const data = read.get(row);
+      if (data) {
+        rows.push(data);
+        found.push(positions[i]);
+      }
+    });
+    this.env.post({
+      type: 'rows',
+      generation: loaded.generation,
+      requestId,
+      rows,
+      positions: found,
+    });
+  }
+
+  /** 1 列で並べ替える。direction が null なら元の順に戻す */
+  private sort(
+    loaded: Loaded,
+    sortId: number,
+    column: number,
+    direction: SortDirection | null
+  ): void {
+    this.sortJob?.cancel();
+    this.sortJob = undefined;
+    const state = (status: SortStatus, dir: SortDirection | null = direction) =>
+      this.env.post({
+        type: 'sortState',
+        generation: loaded.generation,
+        sortId,
+        status,
+        column,
+        direction: dir,
+      });
+    if (direction === null) {
+      loaded.sort = undefined;
+      state('cleared');
+      return;
+    }
+    if (!loaded.countDone) {
+      state('counting', null);
+      return;
+    }
+    if (loaded.rowsCounted > (this.options.sortLimit ?? SORT_LIMIT)) {
+      state('tooLarge', null);
+      return;
+    }
+    state('sorting');
+    this.sortJob = loaded.runner.run(
+      {
+        kind: 'sort',
+        format: loaded.format,
+        column,
+        direction,
+        firstDataRecord: loaded.firstDataRecord,
+      },
+      (message) => {
+        if (loaded !== this.loaded) {
+          return;
+        }
+        if (message.kind === 'error') {
+          this.env.post({ type: 'error', message: message.message });
+          state('cleared', null);
+        } else if (message.kind === 'sortResult') {
+          const order = Uint32Array.from(message.rows);
+          const position = new Uint32Array(order.length);
+          order.forEach((row, i) => {
+            position[row - 1] = i + 1;
+          });
+          loaded.sort = { column, direction, order, position };
+          state('done');
+        }
+      }
+    );
   }
 
   /** 検索を始める。実行中の検索は止める */

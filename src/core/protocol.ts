@@ -32,6 +32,11 @@ export interface FindHit {
   value: string;
 }
 
+export type SortDirection = 'asc' | 'desc';
+
+/** ソートの状態。counting は行数を数え終えていない、tooLarge は行数が上限を超えている */
+export type SortStatus = 'sorting' | 'done' | 'cleared' | 'counting' | 'tooLarge';
+
 /** 右クリックメニューのコマンド */
 export type ContextCommand =
   'copyCell' | 'copyRow' | 'findSameValue' | 'openRecordView' | 'openSourceAtRow';
@@ -39,7 +44,17 @@ export type ContextCommand =
 /** Webview → 拡張機能ホスト */
 export type WebviewMessage =
   | { type: 'ready' }
-  | { type: 'requestRows'; requestId: number; from: number; count: number }
+  | {
+      type: 'requestRows';
+      requestId: number;
+      from: number;
+      count: number;
+      /** ソート中の要求。このとき from と count は表示の位置（1 始まり） */
+      sortId?: number;
+    }
+  | { type: 'sort'; sortId: number; column: number; direction: SortDirection | null }
+  /** ソート中の表示の位置を尋ねる */
+  | { type: 'locateRow'; requestId: number; row: number }
   | { type: 'find'; searchId: number; query: FindQuery }
   | { type: 'cancelFind' }
   | { type: 'setEncoding'; encoding: EncodingChoice }
@@ -81,7 +96,23 @@ export interface InitMessage {
 export type HostMessage =
   | InitMessage
   | { type: 'progress'; generation: number; rowsCounted: number; countDone: boolean }
-  | { type: 'rows'; generation: number; requestId: number; rows: RowData[] }
+  | {
+      type: 'rows';
+      generation: number;
+      requestId: number;
+      rows: RowData[];
+      /** ソート中の要求への返事のとき、rows[i] の表示の位置 */
+      positions?: number[];
+    }
+  | {
+      type: 'sortState';
+      generation: number;
+      sortId: number;
+      status: SortStatus;
+      column: number;
+      direction: SortDirection | null;
+    }
+  | { type: 'rowLocated'; generation: number; requestId: number; row: number; position: number }
   | {
       type: 'findProgress';
       generation: number;

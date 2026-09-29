@@ -25,7 +25,16 @@
   "categories": [
     "Other"
   ],
-  "keywords": [],
+  "keywords": [
+    "csv",
+    "tsv",
+    "viewer",
+    "read-only",
+    "large file",
+    "encoding",
+    "shift_jis",
+    "utf-16"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "l10n": "./l10n",

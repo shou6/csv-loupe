@@ -210,6 +210,32 @@ suite('CsvSession', () => {
     await session.dispose();
   });
 
+  test('切り替えると新しい世代で索引を作り直し、古い世代の途中経過は送らない', async () => {
+    const env = new FakeEnvironment(utf8(csv(1000)));
+    const session = new CsvSession(env);
+    await session.start();
+    const first = env.lastInit().generation;
+    await session.handle({ type: 'setDelimiter', delimiter: 'semicolon' });
+    const second = env.lastInit().generation;
+    assert.ok(second > first);
+    const switchedAt = env.messages.length;
+    await waitUntil(
+      () => env.of('progress').some((p) => p.generation === second && p.countDone),
+      '新しい世代で数え終える'
+    );
+    const after = env.messages.slice(switchedAt);
+    assert.ok(
+      after.every((m) => m.type !== 'progress' || m.generation === second),
+      '古い世代の途中経過が届いている'
+    );
+    const last = env
+      .of('progress')
+      .filter((p) => p.generation === second)
+      .pop();
+    assert.strictEqual(last?.rowsCounted, 1000);
+    await session.dispose();
+  });
+
   test('区切り文字を切り替えると読み直す。再読み込みでも選んだものを保つ', async () => {
     const env = new FakeEnvironment(utf8('a;b\n1;2\n'));
     const session = new CsvSession(env);

@@ -142,6 +142,25 @@ suite('CSV Lens のエディタ', () => {
     assert.strictEqual(editor.document.encoding, 'shiftjis');
   });
 
+  test('表示中にファイルが変わったら知らせ、再読み込みで新しい内容を送る', async () => {
+    const uri = await open('changing.csv', 'a,b\n1,2\n');
+    const before = await init(uri);
+    fs.writeFileSync(uri.fsPath, 'a,b\n1,2\n3,4\n');
+    await waitFor(() => lastOf(testApi.messages(uri), 'fileChanged'), 'fileChanged');
+    await testApi.send(uri, { type: 'reload' });
+    const after = await waitFor(() => {
+      const latest = lastOf(testApi.messages(uri), 'init');
+      return latest && latest.generation > before.generation ? latest : undefined;
+    }, '読み直した init');
+    assert.deepStrictEqual(
+      after.rows.map((r) => r.cells),
+      [
+        ['1', '2'],
+        ['3', '4'],
+      ]
+    );
+  });
+
   test('Worker で CSV 全体を検索し、Row と列を返す', async () => {
     let text = 'id,name\n';
     for (let i = 1; i <= 5000; i++) {

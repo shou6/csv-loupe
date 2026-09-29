@@ -2,7 +2,7 @@
   "name": "csv-lens",
   "displayName": "CSV Lens",
   "description": "%description%",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "shou6",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -25,12 +25,24 @@
   "categories": [
     "Other"
   ],
-  "keywords": [],
+  "keywords": [
+    "csv",
+    "tsv",
+    "viewer",
+    "read-only",
+    "large file",
+    "encoding",
+    "shift_jis",
+    "utf-16"
+  ],
   "activationEvents": [],
   "main": "./dist/extension.js",
   "l10n": "./l10n",
   "files": [
     "dist/extension.js",
+    "dist/worker.js",
+    "dist/webview.js",
+    "dist/webview.css",
     "resources/**",
     "l10n/**",
     "package.nls.json",
@@ -39,14 +51,106 @@
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
   "contributes": {
+    "customEditors": [
+      {
+        "viewType": "csvLens.editor",
+        "displayName": "%editor.displayName%",
+        "selector": [
+          {
+            "filenamePattern": "*.csv"
+          },
+          {
+            "filenamePattern": "*.tsv"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
     "commands": [
       {
-        "command": "csvLens.helloWorld",
-        "title": "%command.helloWorld%",
+        "command": "csvLens.copyCell",
+        "title": "%command.copyCell%",
+        "category": "CSV Lens"
+      },
+      {
+        "command": "csvLens.copyRow",
+        "title": "%command.copyRow%",
+        "category": "CSV Lens"
+      },
+      {
+        "command": "csvLens.findSameValue",
+        "title": "%command.findSameValue%",
+        "category": "CSV Lens"
+      },
+      {
+        "command": "csvLens.openRecordView",
+        "title": "%command.openRecordView%",
+        "category": "CSV Lens"
+      },
+      {
+        "command": "csvLens.openSourceAtRow",
+        "title": "%command.openSourceAtRow%",
         "category": "CSV Lens"
       }
-    ]
+    ],
+    "menus": {
+      "webview/context": [
+        {
+          "command": "csvLens.copyCell",
+          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "csvLens.copyRow",
+          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "group": "1_copy@2"
+        },
+        {
+          "command": "csvLens.findSameValue",
+          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "group": "2_find@1"
+        },
+        {
+          "command": "csvLens.openRecordView",
+          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "group": "3_view@1"
+        },
+        {
+          "command": "csvLens.openSourceAtRow",
+          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "group": "3_view@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "csvLens.copyCell",
+          "when": "false"
+        },
+        {
+          "command": "csvLens.copyRow",
+          "when": "false"
+        },
+        {
+          "command": "csvLens.findSameValue",
+          "when": "false"
+        },
+        {
+          "command": "csvLens.openRecordView",
+          "when": "false"
+        },
+        {
+          "command": "csvLens.openSourceAtRow",
+          "when": "false"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -58,7 +162,7 @@
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && mocha",
-    "check-types": "tsc --noEmit",
+    "check-types": "tsc --noEmit && tsc --noEmit -p src/webview",
     "lint": "eslint src",
     "format": "prettier --write \"src/**/*.ts\" \"*.{js,mjs,json}\" \".vscode/*.json\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"*.{js,mjs,json}\" \".vscode/*.json\"",
@@ -69,7 +173,8 @@
     "test:integration:local": "node scripts/test-integration-local.js",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "verify:package": "npm run compile-tests && node scripts/verify-package.js",
-    "icon": "node scripts/generate-icon.js"
+    "icon": "node scripts/generate-icon.js",
+    "bench": "npm run compile-tests && node scripts/bench.js"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

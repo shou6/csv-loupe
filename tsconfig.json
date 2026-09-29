@@ -13,5 +13,7 @@
     // "noUnusedParameters": true,  /* Report errors on unused parameters. */
   },
   // .template/ にある初期化用のファイルを含めない
-  "include": ["src"]
+  "include": ["src"],
+  // Webview は DOM を使うので src/webview/tsconfig.json で別に検査する
+  "exclude": ["src/webview"]
 }

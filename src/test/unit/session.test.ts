@@ -64,7 +64,9 @@ class FakeEnvironment implements SessionEnvironment {
 
 /** 条件を満たすまで待つ（索引の作成は非同期に進む） */
 async function waitUntil(condition: () => boolean, message: string): Promise<void> {
-  for (let i = 0; i < 500; i++) {
+  // mocha の既定の 2 秒より短く打ち切り、何を待っていたかを失敗の理由に出す
+  const start = Date.now();
+  while (Date.now() - start < 1500) {
     if (condition()) {
       return;
     }
@@ -249,6 +251,72 @@ suite('CsvSession', () => {
       row: 2,
       column: 1,
     });
+    await session.dispose();
+  });
+
+  test('検索の途中経過と結果を、検索の番号を付けて送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(500)));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({
+      type: 'find',
+      searchId: 3,
+      query: { text: 'n49', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    const progress = env.of('findProgress');
+    assert.ok(progress.every((m) => m.searchId === 3));
+    assert.ok(progress.every((m) => m.fileSize === env.bytes.length));
+    const hits = progress.flatMap((m) => m.hits);
+    // n49 と n490〜n499
+    assert.deepStrictEqual(
+      hits.map((h) => h.row),
+      [49, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499]
+    );
+    assert.strictEqual(progress[progress.length - 1].total, 11);
+    await session.dispose();
+  });
+
+  test('新しい検索を始めると、前の検索の結果はもう送らない', async () => {
+    const env = new FakeEnvironment(utf8(csv(3000)));
+    const session = new CsvSession(env);
+    await session.start();
+    const find = (searchId: number, text: string) =>
+      session.handle({
+        type: 'find',
+        searchId,
+        query: { text, caseSensitive: false, wholeCell: false },
+      });
+    await find(1, 'n');
+    await find(2, 'n2999');
+    await waitUntil(
+      () => env.of('findProgress').some((m) => m.searchId === 2 && m.done),
+      '2 つ目の検索を終える'
+    );
+    const afterSecond = env.messages.slice(
+      env.messages.findIndex((m) => m.type === 'findProgress' && m.searchId === 2)
+    );
+    assert.ok(
+      afterSecond.every((m) => m.type !== 'findProgress' || m.searchId === 2),
+      '前の検索の結果が届いている'
+    );
+    assert.ok(!env.of('findProgress').some((m) => m.searchId === 1 && m.done));
+    await session.dispose();
+  });
+
+  test('検索を取り消すと、それ以降は結果を送らない', async () => {
+    const env = new FakeEnvironment(utf8(csv(3000)));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'n', caseSensitive: false, wholeCell: false },
+    });
+    await session.handle({ type: 'cancelFind' });
+    const count = env.of('findProgress').length;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.strictEqual(env.of('findProgress').length, count);
     await session.dispose();
   });
 

@@ -6,7 +6,7 @@ const COMMON = ['package.json', 'README.md', 'LICENSE', 'resources/icon.png'];
 suite('parseVsceLs', () => {
   test('vsce ls の出力から、ファイルの一覧だけを取り出す', () => {
     const output = [
-      '> csv-lens@0.0.1 vscode:prepublish',
+      '> csv-lens@0.1.0 vscode:prepublish',
       '> npm run package',
       '',
       ' INFO  Files included in the VSIX:',

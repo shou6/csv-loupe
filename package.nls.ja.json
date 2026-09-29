@@ -1,6 +1,6 @@
 {
   "description": "大容量のものも含め、CSV と TSV の中身を素早く確認するための読み取り専用のビューア。",
-  "editor.displayName": "CSV Lens",
+  "editor.displayName": "CSV Loupe",
   "command.copyCell": "セルをコピー",
   "command.copyRow": "行をコピー",
   "command.findSameValue": "同じ値を検索",

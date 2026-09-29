@@ -1,12 +1,12 @@
-# CSV Lens
+# CSV Loupe
 
-[![CI](https://github.com/shou6/csv-lens/actions/workflows/ci.yml/badge.svg)](https://github.com/shou6/csv-lens/actions/workflows/ci.yml)
+[![CI](https://github.com/shou6/csv-loupe/actions/workflows/ci.yml/badge.svg)](https://github.com/shou6/csv-loupe/actions/workflows/ci.yml)
 
 [English](README.md)
 
 開発中に「この CSV の中身を確認したい」ときのための、読み取り専用のビューアです。大容量のファイルも扱えます。編集や分析はせず、中身を確認するまでの時間を短くすることに絞っています。
 
-![CSV Lens で CSV を開いたところ](images/main.png)
+![CSV Loupe で CSV を開いたところ](images/main.png)
 
 ## 機能
 
@@ -49,7 +49,7 @@
 
 ## 使い方
 
-1. `.csv` か `.tsv` を開くと、CSV Lens で表示される
+1. `.csv` か `.tsv` を開くと、CSV Loupe で表示される
 2. ツールバーで表示する行数（1 / 10 / 100 / All）を選ぶ
 3. セルを右クリックすると、次の操作を選べる
    - **セルをコピー**

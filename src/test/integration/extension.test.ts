@@ -42,7 +42,7 @@ suite('Extension', () => {
   let dir: string;
 
   suiteSetup(() => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-'));
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-loupe-'));
   });
 
   suiteTeardown(async () => {
@@ -71,11 +71,11 @@ suite('Extension', () => {
   });
 
   for (const name of ['sample.csv', 'sample.tsv']) {
-    test(name + ' を開くと、既定で CSV Lens のエディタになる', async () => {
+    test(name + ' を開くと、既定で CSV Loupe のエディタになる', async () => {
       const file = path.join(dir, name);
       fs.writeFileSync(file, 'id,name\n1,a\n');
       await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(file));
-      await waitUntil(() => activeViewType() === 'csvLens.editor', 'CSV Lens で開く');
+      await waitUntil(() => activeViewType() === 'csvLoupe.editor', 'CSV Loupe で開く');
     });
   }
 

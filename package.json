@@ -1,6 +1,6 @@
 {
-  "name": "csv-lens",
-  "displayName": "CSV Lens",
+  "name": "csv-loupe",
+  "displayName": "CSV Loupe",
   "description": "%description%",
   "version": "0.1.0",
   "publisher": "shou6",
@@ -10,13 +10,13 @@
     "color": "#1F2937",
     "theme": "dark"
   },
-  "homepage": "https://github.com/shou6/csv-lens#readme",
+  "homepage": "https://github.com/shou6/csv-loupe#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/shou6/csv-lens.git"
+    "url": "https://github.com/shou6/csv-loupe.git"
   },
   "bugs": {
-    "url": "https://github.com/shou6/csv-lens/issues"
+    "url": "https://github.com/shou6/csv-loupe/issues"
   },
   "private": true,
   "engines": {
@@ -60,7 +60,7 @@
   "contributes": {
     "customEditors": [
       {
-        "viewType": "csvLens.editor",
+        "viewType": "csvLoupe.editor",
         "displayName": "%editor.displayName%",
         "selector": [
           {
@@ -75,78 +75,78 @@
     ],
     "commands": [
       {
-        "command": "csvLens.copyCell",
+        "command": "csvLoupe.copyCell",
         "title": "%command.copyCell%",
-        "category": "CSV Lens"
+        "category": "CSV Loupe"
       },
       {
-        "command": "csvLens.copyRow",
+        "command": "csvLoupe.copyRow",
         "title": "%command.copyRow%",
-        "category": "CSV Lens"
+        "category": "CSV Loupe"
       },
       {
-        "command": "csvLens.findSameValue",
+        "command": "csvLoupe.findSameValue",
         "title": "%command.findSameValue%",
-        "category": "CSV Lens"
+        "category": "CSV Loupe"
       },
       {
-        "command": "csvLens.openRecordView",
+        "command": "csvLoupe.openRecordView",
         "title": "%command.openRecordView%",
-        "category": "CSV Lens"
+        "category": "CSV Loupe"
       },
       {
-        "command": "csvLens.openSourceAtRow",
+        "command": "csvLoupe.openSourceAtRow",
         "title": "%command.openSourceAtRow%",
-        "category": "CSV Lens"
+        "category": "CSV Loupe"
       }
     ],
     "menus": {
       "webview/context": [
         {
-          "command": "csvLens.copyCell",
-          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "command": "csvLoupe.copyCell",
+          "when": "webviewId == 'csvLoupe.editor' && webviewSection == 'cell'",
           "group": "1_copy@1"
         },
         {
-          "command": "csvLens.copyRow",
-          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "command": "csvLoupe.copyRow",
+          "when": "webviewId == 'csvLoupe.editor' && webviewSection == 'cell'",
           "group": "1_copy@2"
         },
         {
-          "command": "csvLens.findSameValue",
-          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "command": "csvLoupe.findSameValue",
+          "when": "webviewId == 'csvLoupe.editor' && webviewSection == 'cell'",
           "group": "2_find@1"
         },
         {
-          "command": "csvLens.openRecordView",
-          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "command": "csvLoupe.openRecordView",
+          "when": "webviewId == 'csvLoupe.editor' && webviewSection == 'cell'",
           "group": "3_view@1"
         },
         {
-          "command": "csvLens.openSourceAtRow",
-          "when": "webviewId == 'csvLens.editor' && webviewSection == 'cell'",
+          "command": "csvLoupe.openSourceAtRow",
+          "when": "webviewId == 'csvLoupe.editor' && webviewSection == 'cell'",
           "group": "3_view@2"
         }
       ],
       "commandPalette": [
         {
-          "command": "csvLens.copyCell",
+          "command": "csvLoupe.copyCell",
           "when": "false"
         },
         {
-          "command": "csvLens.copyRow",
+          "command": "csvLoupe.copyRow",
           "when": "false"
         },
         {
-          "command": "csvLens.findSameValue",
+          "command": "csvLoupe.findSameValue",
           "when": "false"
         },
         {
-          "command": "csvLens.openRecordView",
+          "command": "csvLoupe.openRecordView",
           "when": "false"
         },
         {
-          "command": "csvLens.openSourceAtRow",
+          "command": "csvLoupe.openSourceAtRow",
           "when": "false"
         }
       ]

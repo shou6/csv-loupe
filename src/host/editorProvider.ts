@@ -8,13 +8,13 @@ import { ByteSource } from '../core/source/byteSource';
 import { MemorySource } from '../core/source/memorySource';
 import { NodeFileSource } from '../core/source/nodeFileSource';
 import { buildWebviewHtml } from '../core/webviewHtml';
-import { CsvLensTestApi } from './testApi';
+import { CsvLoupeTestApi } from './testApi';
 import { WorkerJobRunner } from './workerJobRunner';
 
-export const VIEW_TYPE = 'csvLens.editor';
+export const VIEW_TYPE = 'csvLoupe.editor';
 
 /** CSV を読み取り専用で表示するカスタムエディタ。TextDocument を経由しないので、VS Code の大容量の確認が出ない */
-export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvider {
+export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvider {
   /** 右クリックメニューのコマンドを送る先。最後にアクティブになったエディタのセッション */
   private activeSession: CsvSession | undefined;
   private readonly sessions = new Map<string, CsvSession>();
@@ -135,7 +135,7 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
     this.activeSession?.contextCommand(command, cell.row, cell.column);
   }
 
-  testApi(): CsvLensTestApi {
+  testApi(): CsvLoupeTestApi {
     return {
       messages: (uri) => this.messageLog?.get(uri.toString()) ?? [],
       send: async (uri, message) => {

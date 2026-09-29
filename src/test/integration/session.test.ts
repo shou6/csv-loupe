@@ -4,12 +4,12 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { HostMessage, InitMessage } from '../../core/protocol';
-import { CsvLensTestApi } from '../../host/testApi';
+import { CsvLoupeTestApi } from '../../host/testApi';
 
-async function api(): Promise<CsvLensTestApi> {
-  const extension = vscode.extensions.all.find((e) => e.id.endsWith('.csv-lens'));
+async function api(): Promise<CsvLoupeTestApi> {
+  const extension = vscode.extensions.all.find((e) => e.id.endsWith('.csv-loupe'));
   assert.ok(extension, '拡張機能が見つからない');
-  const exported = (await extension.activate()) as CsvLensTestApi | undefined;
+  const exported = (await extension.activate()) as CsvLoupeTestApi | undefined;
   assert.ok(exported, 'テスト用の API を返していない');
   return exported;
 }
@@ -51,13 +51,13 @@ function lastOf<T extends HostMessage['type']>(
   return found[found.length - 1];
 }
 
-suite('CSV Lens のエディタ', () => {
+suite('CSV Loupe のエディタ', () => {
   let dir: string;
-  let testApi: CsvLensTestApi;
+  let testApi: CsvLoupeTestApi;
 
   suiteSetup(async () => {
     // macOS の一時ディレクトリはシンボリックリンク（/var → /private/var）なので、実体のパスで監視する
-    dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-')));
+    dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'csv-loupe-')));
     testApi = await api();
   });
 
@@ -71,7 +71,7 @@ suite('CSV Lens のエディタ', () => {
     const file = path.join(dir, name);
     fs.writeFileSync(file, content);
     const uri = vscode.Uri.file(file);
-    await vscode.commands.executeCommand('vscode.openWith', uri, 'csvLens.editor');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'csvLoupe.editor');
     return uri;
   }
 
@@ -115,8 +115,8 @@ suite('CSV Lens のエディタ', () => {
   test('右クリックメニューのコマンドを、対象のセルと一緒に Webview へ送る', async () => {
     const uri = await open('menu.csv', 'a,b\n1,2\n');
     await init(uri);
-    await vscode.commands.executeCommand('csvLens.copyCell', {
-      webview: 'csvLens.editor',
+    await vscode.commands.executeCommand('csvLoupe.copyCell', {
+      webview: 'csvLoupe.editor',
       webviewSection: 'cell',
       row: 1,
       column: 1,
@@ -140,7 +140,7 @@ suite('CSV Lens のエディタ', () => {
     assert.strictEqual(await vscode.env.clipboard.readText(), '1\t2');
   });
 
-  test('元のファイルを、CSV Lens と同じ文字コードの標準のテキストエディタで開き、指定した行へ移る', async () => {
+  test('元のファイルを、CSV Loupe と同じ文字コードの標準のテキストエディタで開き、指定した行へ移る', async () => {
     // 表,ポ ↵ あ,"①↵x" ↵ z
     const bytes = Uint8Array.from([
       0x95, 0x5c, 0x2c, 0x83, 0x7c, 0x0a, 0x82, 0xa0, 0x2c, 0x22, 0x87, 0x40, 0x0a, 0x78, 0x22,

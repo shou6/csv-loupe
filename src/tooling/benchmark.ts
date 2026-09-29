@@ -14,7 +14,7 @@ import { searchRecords } from '../core/search/searcher';
 import { NodeFileSource } from '../core/source/nodeFileSource';
 
 /** 最後の行にだけ入れる値。検索がファイルの末尾まで走査することを確かめる */
-export const LAST_ROW_MARKER = 'csv-lens-last-row';
+export const LAST_ROW_MARKER = 'csv-loupe-last-row';
 
 export interface BenchmarkResult {
   bytes: number;

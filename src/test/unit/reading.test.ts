@@ -60,7 +60,7 @@ async function collect(
 
 suite('MemorySource と NodeFileSource', () => {
   test('指定した範囲を読み、ファイルの末尾を超えた分は読まない', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-loupe-'));
     try {
       const file = path.join(dir, 'a.csv');
       fs.writeFileSync(file, 'abcdef');

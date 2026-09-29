@@ -27,7 +27,7 @@ suite('sampleRow', () => {
 
 suite('writeLargeCsv と runBenchmark', () => {
   test('ヘッダーと指定した行数を書き、計測では行数と目印の検索の結果を返す', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-bench-'));
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-loupe-bench-'));
     try {
       const file = path.join(dir, 'small.csv');
       await writeLargeCsv(file, 3000, 6);

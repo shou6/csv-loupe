@@ -20,7 +20,7 @@ function option(name, fallback) {
 
 const rows = option('rows', 10_000_000);
 const columns = option('columns', 20);
-const dir = path.join(os.tmpdir(), 'csv-lens-bench');
+const dir = path.join(os.tmpdir(), 'csv-loupe-bench');
 const file = path.join(dir, 'rows-' + rows + '-cols-' + columns + '.csv');
 
 /** 要件の目標 */

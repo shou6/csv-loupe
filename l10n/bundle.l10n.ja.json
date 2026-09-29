@@ -20,5 +20,17 @@
   "Record View": "レコード表示",
   "Select a cell to see its row.": "セルを選ぶと、その行を表示します。",
   "Row {0}": "行 {0}",
-  "Source Line {0}": "元のファイルの {0} 行目"
+  "Source Line {0}": "元のファイルの {0} 行目",
+  "Find": "検索",
+  "Match Case": "大文字と小文字を区別",
+  "Match Whole Cell": "セル全体の一致",
+  "Previous Match": "前の一致",
+  "Next Match": "次の一致",
+  "No results": "一致なし",
+  "{0} of {1}": "{1} 件中 {0} 件目",
+  "1 match": "1 件",
+  "{0} matches": "{0} 件",
+  "(searching… {0}%)": "（検索中… {0}%）",
+  "(list shows the first {0})": "（一覧は先頭の {0} 件）",
+  "Row {0} can be shown after row counting finishes.": "行 {0} は、行数を数え終えると表示できます。"
 }

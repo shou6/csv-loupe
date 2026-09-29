@@ -119,6 +119,19 @@ export class GridView {
     }
   }
 
+  /** 列が横方向に見えていなければ、見えるようにスクロールする（行番号の列に隠れないようにする） */
+  revealColumn(column: number): void {
+    const left = this.widths.slice(0, column).reduce((a, b) => a + b, 0);
+    const width = this.widths[column] ?? DEFAULT_COLUMN_WIDTH;
+    const visibleLeft = this.element.scrollLeft;
+    const visibleWidth = this.element.clientWidth - this.rowNumberWidth;
+    if (left < visibleLeft) {
+      this.element.scrollLeft = left;
+    } else if (left + width > visibleLeft + visibleWidth) {
+      this.element.scrollLeft = left + Math.min(width, visibleWidth) - visibleWidth;
+    }
+  }
+
   schedule(): void {
     if (this.frame === 0) {
       this.frame = requestAnimationFrame(() => {

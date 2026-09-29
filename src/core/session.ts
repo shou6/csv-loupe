@@ -8,6 +8,7 @@ import {
   DelimiterId,
   EncodingChoice,
   EncodingId,
+  FindQuery,
   HostMessage,
   InitMessage,
   WebviewMessage,
@@ -21,6 +22,8 @@ export const INITIAL_ROWS = 100;
 const HEAD_SIZE = 64 * 1024;
 /** 1 回の要求で返す行数の上限 */
 const MAX_ROWS_PER_REQUEST = 1000;
+/** 検索の一覧に入れる一致の上限 */
+export const FIND_LIMIT = 10_000;
 
 /** セッションが頼る外側の機能。拡張機能ホストでは vscode の API で、テストではフェイクで実装する */
 export interface SessionEnvironment {
@@ -56,6 +59,7 @@ export class CsvSession {
   private generation = 0;
   private loaded: Loaded | undefined;
   private indexJob: JobHandle | undefined;
+  private searchJob: JobHandle | undefined;
   /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
@@ -95,6 +99,15 @@ export class CsvSession {
               });
             }
           }
+          break;
+        case 'find':
+          if (loaded) {
+            this.find(loaded, message.searchId, message.query);
+          }
+          break;
+        case 'cancelFind':
+          this.searchJob?.cancel();
+          this.searchJob = undefined;
           break;
         case 'setEncoding':
           this.encodingChoice = message.encoding;
@@ -144,6 +157,38 @@ export class CsvSession {
   private stopJobs(): void {
     this.indexJob?.cancel();
     this.indexJob = undefined;
+    this.searchJob?.cancel();
+    this.searchJob = undefined;
+  }
+
+  /** 検索を始める。実行中の検索は止める */
+  private find(loaded: Loaded, searchId: number, query: FindQuery): void {
+    this.searchJob?.cancel();
+    const fileSize = loaded.source.size;
+    this.searchJob = loaded.runner.run(
+      { kind: 'search', format: loaded.format, query, limit: FIND_LIMIT },
+      (message) => {
+        if (loaded !== this.loaded) {
+          return;
+        }
+        if (message.kind === 'error') {
+          this.env.post({ type: 'error', message: message.message });
+        } else if (message.kind === 'searchProgress') {
+          const p = message.progress;
+          this.env.post({
+            type: 'findProgress',
+            generation: loaded.generation,
+            searchId,
+            hits: p.hits,
+            total: p.total,
+            scannedBytes: p.scannedBytes,
+            fileSize,
+            done: p.done,
+            truncated: p.truncated,
+          });
+        }
+      }
+    );
   }
 
   private async load(): Promise<void> {
@@ -224,6 +269,9 @@ export class CsvSession {
     }
     if (message.kind === 'error') {
       this.env.post({ type: 'error', message: message.message });
+      return;
+    }
+    if (message.kind !== 'indexProgress') {
       return;
     }
     const progress = message.progress;

@@ -318,3 +318,82 @@ button.icon {
 .record-list .selected {
   background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.2));
 }
+
+.find-bar {
+  display: flex;
+  flex-basis: 100%;
+  gap: 4px;
+  align-items: center;
+}
+
+.find-input {
+  width: 260px;
+  padding: 3px 6px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 2px;
+  font: inherit;
+}
+
+.find-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+button.toggle {
+  min-width: 30px;
+  padding: 2px 4px;
+}
+
+.find-status {
+  margin-left: 6px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.find-results {
+  max-height: 30%;
+  overflow: auto;
+  border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.find-results[hidden] {
+  display: none;
+}
+
+.find-item {
+  display: grid;
+  grid-template-columns: 110px minmax(80px, 200px) 1fr;
+  gap: 12px;
+  padding: 1px 10px;
+  cursor: pointer;
+}
+
+.find-item:hover {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.15));
+}
+
+.find-item.current {
+  color: var(--vscode-list-activeSelectionForeground);
+  background: var(--vscode-list-activeSelectionBackground);
+}
+
+.find-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-row {
+  text-align: right;
+}
+
+.find-column {
+  color: var(--vscode-descriptionForeground);
+}
+
+.find-item.current .find-column {
+  color: inherit;
+}

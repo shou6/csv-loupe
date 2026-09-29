@@ -42,7 +42,11 @@ export async function forEachRecord(
   format: CsvFormat,
   from: RecordPosition,
   onRecord: (record: RawRecord) => boolean | void,
-  options: { chunkSize?: number } = {}
+  options: {
+    chunkSize?: number;
+    /** チャンクを 1 つ処理するたびに、読み終えた位置（絶対位置）を渡す。false を返すと止める */
+    onChunk?: (end: number) => boolean | void;
+  } = {}
 ): Promise<void> {
   const chunkSize = options.chunkSize ?? DEFAULT_CHUNK_SIZE;
   const scanner = createScanner(format, from.line);
@@ -78,6 +82,9 @@ export async function forEachRecord(
       parts.push(chunk.subarray(segmentStart));
     }
     pos += chunk.length;
+    if (!stopped && options.onChunk?.(pos) === false) {
+      stopped = true;
+    }
   }
   if (!stopped && parts.length > 0) {
     onRecord({ offset: recordStart, line: recordLine, bytes: concatBytes(parts) });

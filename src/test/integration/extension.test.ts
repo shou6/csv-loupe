@@ -47,7 +47,8 @@ suite('Extension', () => {
 
   suiteTeardown(async () => {
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-    fs.rmSync(dir, { recursive: true, force: true });
+    // 閉じたエディタがファイルを閉じ終える前だと Windows で削除に失敗するので、再試行する
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   });
 
   test('拡張機能が読み込まれ、有効化できる', async () => {

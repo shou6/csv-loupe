@@ -47,7 +47,8 @@ suite('CSV Lens のエディタ', () => {
 
   suiteTeardown(async () => {
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-    fs.rmSync(dir, { recursive: true, force: true });
+    // 閉じたエディタがファイルを閉じ終える前だと Windows で削除に失敗するので、再試行する
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   });
 
   async function open(name: string, content: string | Uint8Array): Promise<vscode.Uri> {
@@ -121,5 +122,27 @@ suite('CSV Lens のエディタ', () => {
     await init(uri);
     await testApi.send(uri, { type: 'copy', text: '1\t2' });
     assert.strictEqual(await vscode.env.clipboard.readText(), '1\t2');
+  });
+
+  test('Worker で CSV 全体を検索し、Row と列を返す', async () => {
+    let text = 'id,name\n';
+    for (let i = 1; i <= 5000; i++) {
+      text += i + ',name' + i + '\n';
+    }
+    const uri = await open('find.csv', text);
+    await init(uri);
+    await testApi.send(uri, {
+      type: 'find',
+      searchId: 1,
+      query: { text: 'NAME4999', caseSensitive: false, wholeCell: true },
+    });
+    const done = await waitFor(() => {
+      const found = testApi.messages(uri).filter((m) => m.type === 'findProgress' && m.done);
+      return found[0];
+    }, '検索を終える');
+    assert.ok(done.type === 'findProgress');
+    const hits = testApi.messages(uri).flatMap((m) => (m.type === 'findProgress' ? m.hits : []));
+    assert.deepStrictEqual(hits, [{ row: 4999, column: 1, value: 'name4999' }]);
+    assert.strictEqual(done.total, 1);
   });
 });

@@ -1,12 +1,18 @@
 import { CsvFormat } from './csv/types';
 import { buildIndex, IndexProgress } from './index/buildIndex';
+import { FindQuery } from './protocol';
+import { searchRecords, SearchProgress } from './search/searcher';
 import { ByteSource } from './source/byteSource';
 
 /** 時間のかかる処理。本番では Worker で、テストと file 以外のスキームではその場で動かす */
-export type Job = { kind: 'index'; format: CsvFormat };
+export type Job =
+  | { kind: 'index'; format: CsvFormat }
+  | { kind: 'search'; format: CsvFormat; query: FindQuery; limit: number };
 
 export type JobMessage =
-  { kind: 'indexProgress'; progress: IndexProgress } | { kind: 'error'; message: string };
+  | { kind: 'indexProgress'; progress: IndexProgress }
+  | { kind: 'searchProgress'; progress: SearchProgress }
+  | { kind: 'error'; message: string };
 
 export interface JobHandle {
   /** 止める。止めた後はメッセージを知らせない */
@@ -43,6 +49,15 @@ export async function runJob(
         reportEveryChunks: options.reportEveryChunks,
         shouldStop,
         onProgress: (progress) => post({ kind: 'indexProgress', progress }),
+      });
+      break;
+    case 'search':
+      await searchRecords(source, job.format, job.query, {
+        limit: job.limit,
+        chunkSize: options.chunkSize,
+        reportEveryChunks: options.reportEveryChunks,
+        shouldStop,
+        onProgress: (progress) => post({ kind: 'searchProgress', progress }),
       });
       break;
   }

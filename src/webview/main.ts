@@ -5,6 +5,7 @@ import { createTranslator, Translate } from '../core/translate';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { el } from './dom';
 import { CellPosition, GridView } from './grid';
+import { FindPanel } from './findPanel';
 import { RecordView } from './recordView';
 import { onHostMessage, post } from './vscodeApi';
 
@@ -90,7 +91,7 @@ const grid = new GridView(
     requestRows,
     wrap: () => state.wrap,
     selected: () => state.selected,
-    mark: () => undefined,
+    mark: (row, column) => findPanel.mark(row, column),
   },
   {
     onSelect: (cell) => {
@@ -100,6 +101,43 @@ const grid = new GridView(
     },
   }
 );
+
+const findPanel = new FindPanel({
+  search: (searchId, query) => post({ type: 'find', searchId, query }),
+  cancel: () => post({ type: 'cancelFind' }),
+  jump: (hit) => jumpTo(hit.row, hit.column),
+  columnName: (column) =>
+    state.init && column < state.init.header.length
+      ? state.init.header[column]
+      : t('(column {0})', String(column + 1)),
+  translate: () => t,
+});
+
+/** 知らせ（一時的な案内）。次の操作で消える */
+let notice: string | undefined;
+
+function showNotice(message: string | undefined): void {
+  notice = message;
+  renderBanners();
+}
+
+/** セルを選んで、表示する。All 以外の表示行数で範囲の外なら All に切り替える */
+function jumpTo(row: number, column: number): void {
+  if (row > state.rowsCounted) {
+    showNotice(t('Row {0} can be shown after row counting finishes.', row.toLocaleString('en-US')));
+    return;
+  }
+  showNotice(undefined);
+  state.selected = { row, column };
+  if (state.peekSize !== 0 && (row < state.peekStart || row >= state.peekStart + state.peekSize)) {
+    state.peekSize = 0;
+    renderToolbar();
+  }
+  const index = state.peekSize === 0 ? row - 1 : row - state.peekStart;
+  grid.revealIndex(index);
+  grid.revealColumn(column);
+  renderRecord();
+}
 
 function requestRows(from: number, count: number): void {
   const last = Math.min(from + count - 1, state.rowsCounted);
@@ -152,6 +190,13 @@ function runContextCommand(command: ContextCommand, cell: CellPosition): void {
     case 'openRecordView':
       openRecordView();
       break;
+    case 'findSameValue': {
+      const value = cache.get(cell.row)?.cells[cell.column];
+      if (value !== undefined) {
+        findPanel.findSameValue(value);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -226,14 +271,23 @@ function renderToolbar(): void {
       },
     },
   });
-  toolbar.replaceChildren(info, el('div', { className: 'controls' }, sizes, wrap, record));
+  toolbar.replaceChildren(
+    info,
+    el('div', { className: 'controls' }, sizes, wrap, record),
+    findPanel.bar
+  );
+  findPanel.render();
 }
 
 function renderBanners(): void {
   const items: HTMLElement[] = [];
   if (state.error) {
     items.push(el('div', { className: 'banner error', text: state.error }));
-  } else if (!state.init) {
+  }
+  if (notice) {
+    items.push(el('div', { className: 'banner', text: notice }));
+  }
+  if (!state.init && !state.error) {
     items.push(el('div', { className: 'message', text: t('Loading…') }));
   }
   banners.replaceChildren(...items);
@@ -248,6 +302,8 @@ function onInit(message: InitMessage): void {
   state.error = undefined;
   state.peekStart = 1;
   state.selected = undefined;
+  notice = undefined;
+  findPanel.reset();
   cache.clear();
   inFlight = undefined;
   queued = undefined;
@@ -298,6 +354,11 @@ function onMessage(message: HostMessage): void {
       }
       return;
     }
+    case 'findProgress':
+      if (message.generation === state.init?.generation && findPanel.onProgress(message)) {
+        grid.refresh();
+      }
+      return;
     case 'contextCommand':
       runContextCommand(message.command, { row: message.row, column: message.column });
       return;
@@ -309,6 +370,13 @@ function onMessage(message: HostMessage): void {
       return;
   }
 }
+
+window.addEventListener('keydown', (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    findPanel.focus();
+  }
+});
 
 grid.element.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && state.selected) {
@@ -323,7 +391,8 @@ grid.element.addEventListener('keydown', (event) => {
 app.replaceChildren(
   toolbar,
   banners,
-  el('div', { className: 'main' }, grid.element, recordView.element)
+  el('div', { className: 'main' }, grid.element, recordView.element),
+  findPanel.results
 );
 onHostMessage(onMessage);
 renderBanners();

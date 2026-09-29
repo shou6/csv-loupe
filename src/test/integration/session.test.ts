@@ -1,0 +1,97 @@
+import * as assert from 'assert';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import * as vscode from 'vscode';
+import { HostMessage, InitMessage } from '../../core/protocol';
+import { CsvLensTestApi } from '../../host/testApi';
+
+async function api(): Promise<CsvLensTestApi> {
+  const extension = vscode.extensions.all.find((e) => e.id.endsWith('.csv-lens'));
+  assert.ok(extension, '拡張機能が見つからない');
+  const exported = (await extension.activate()) as CsvLensTestApi | undefined;
+  assert.ok(exported, 'テスト用の API を返していない');
+  return exported;
+}
+
+async function waitFor<T>(find: () => T | undefined, message: string, timeout = 15_000) {
+  const start = Date.now();
+  for (;;) {
+    const found = find();
+    if (found !== undefined) {
+      return found;
+    }
+    if (Date.now() - start > timeout) {
+      assert.fail('時間内に届かなかった: ' + message);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
+function lastOf<T extends HostMessage['type']>(
+  messages: HostMessage[],
+  type: T
+): Extract<HostMessage, { type: T }> | undefined {
+  const found = messages.filter((m): m is Extract<HostMessage, { type: T }> => m.type === type);
+  return found[found.length - 1];
+}
+
+suite('CSV Lens のエディタ', () => {
+  let dir: string;
+  let testApi: CsvLensTestApi;
+
+  suiteSetup(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'csv-lens-'));
+    testApi = await api();
+  });
+
+  suiteTeardown(async () => {
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function open(name: string, content: string | Uint8Array): Promise<vscode.Uri> {
+    const file = path.join(dir, name);
+    fs.writeFileSync(file, content);
+    const uri = vscode.Uri.file(file);
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'csvLens.editor');
+    return uri;
+  }
+
+  async function init(uri: vscode.Uri): Promise<InitMessage> {
+    return waitFor(() => lastOf(testApi.messages(uri), 'init'), 'init');
+  }
+
+  test('開くと、ヘッダーと先頭の 100 行を送り、Worker で残りの行数を数える', async () => {
+    let text = 'id,name\n';
+    for (let i = 1; i <= 5000; i++) {
+      text += i + ',name' + i + '\n';
+    }
+    const uri = await open('large.csv', text);
+    const first = await init(uri);
+    assert.deepStrictEqual(first.header, ['id', 'name']);
+    assert.strictEqual(first.rows.length, 100);
+    const done = await waitFor(() => {
+      const progress = lastOf(testApi.messages(uri), 'progress');
+      return progress?.countDone ? progress : undefined;
+    }, '行数を数え終える');
+    assert.strictEqual(done.rowsCounted, 5000);
+  });
+
+  test('CP932 のファイルを Shift_JIS として読む', async () => {
+    // 表,ポ ↵ あ,①
+    const bytes = Uint8Array.from([
+      0x95, 0x5c, 0x2c, 0x83, 0x7c, 0x0a, 0x82, 0xa0, 0x2c, 0x87, 0x40, 0x0a,
+    ]);
+    const message = await init(await open('sjis.csv', bytes));
+    assert.strictEqual(message.encoding, 'shiftjis');
+    assert.deepStrictEqual(message.header, ['表', 'ポ']);
+    assert.deepStrictEqual(message.rows[0].cells, ['あ', '①']);
+  });
+
+  test('.tsv はタブ区切りとして読む', async () => {
+    const message = await init(await open('data.tsv', 'a\tb\n1\t2\n'));
+    assert.strictEqual(message.delimiter, 'tab');
+    assert.deepStrictEqual(message.header, ['a', 'b']);
+  });
+});

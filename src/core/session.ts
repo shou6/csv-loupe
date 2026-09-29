@@ -124,8 +124,9 @@ export class CsvSession {
     }
   }
 
-  contextCommand(_command: ContextCommand, _row: number, _column: number): void {
-    throw new Error('not implemented');
+  /** 右クリックメニューのコマンド。処理は表示中のデータを持つ Webview が行う */
+  contextCommand(command: ContextCommand, row: number, column: number): void {
+    this.env.post({ type: 'contextCommand', command, row, column });
   }
 
   fileChanged(): void {

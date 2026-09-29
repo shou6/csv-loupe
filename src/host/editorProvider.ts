@@ -15,8 +15,8 @@ export const VIEW_TYPE = 'csvLens.editor';
 
 /** CSV を読み取り専用で表示するカスタムエディタ。TextDocument を経由しないので、VS Code の大容量の確認が出ない */
 export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvider {
-  /** 右クリックメニューのコマンドを送る先。最後にアクティブになったパネル */
-  private activePanel: vscode.WebviewPanel | undefined;
+  /** 右クリックメニューのコマンドを送る先。最後にアクティブになったエディタのセッション */
+  private activeSession: CsvSession | undefined;
   private readonly sessions = new Map<string, CsvSession>();
   /** テストの実行時だけ、送ったメッセージを記録する */
   private readonly messageLog: Map<string, HostMessage[]> | undefined;
@@ -54,16 +54,16 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
       }),
       panel.onDidChangeViewState(() => {
         if (panel.active) {
-          this.activePanel = panel;
+          this.activeSession = session;
         }
       }),
     ];
     if (panel.active) {
-      this.activePanel = panel;
+      this.activeSession = session;
     }
     panel.onDidDispose(() => {
-      if (this.activePanel === panel) {
-        this.activePanel = undefined;
+      if (this.activeSession === session) {
+        this.activeSession = undefined;
       }
       this.sessions.delete(key);
       vscode.Disposable.from(...disposables).dispose();
@@ -111,13 +111,7 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
     if (typeof cell?.row !== 'number' || typeof cell.column !== 'number') {
       return;
     }
-    const message: HostMessage = {
-      type: 'contextCommand',
-      command,
-      row: cell.row,
-      column: cell.column,
-    };
-    void this.activePanel?.webview.postMessage(message);
+    this.activeSession?.contextCommand(command, cell.row, cell.column);
   }
 
   testApi(): CsvLensTestApi {

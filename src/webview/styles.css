@@ -108,45 +108,124 @@ button.selected {
 }
 
 .table-container {
+  position: relative;
   flex: 1;
+  min-height: 0;
   overflow: auto;
+  outline: none;
 }
 
-table {
+.grid-sizer {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* 画面の高さの枠。スクロールしても上に留まり、見えている行だけを入れる */
+.grid-viewport {
+  position: sticky;
+  top: 0;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+
+table.grid {
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-family: var(--vscode-editor-font-family);
   font-size: var(--vscode-editor-font-size);
 }
 
-th,
-td {
-  max-width: 400px;
-  padding: 2px 8px;
+.grid th,
+.grid td {
+  box-sizing: border-box;
+  height: 22px;
+  padding: 0 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: pre;
+  line-height: 21px;
   text-align: left;
   border-right: 1px solid var(--vscode-editorGroup-border, rgba(128, 128, 128, 0.25));
   border-bottom: 1px solid var(--vscode-editorGroup-border, rgba(128, 128, 128, 0.25));
 }
 
-th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+.grid tbody.wrap td {
+  height: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.grid th {
+  position: relative;
   font-weight: 600;
   background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
 }
 
-.row-number {
+.grid th .label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid th .resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 3;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.grid .row-number {
   position: sticky;
   left: 0;
+  z-index: 1;
   color: var(--vscode-editorLineNumber-foreground);
   background: var(--vscode-editor-background);
   text-align: right;
 }
 
-th.row-number {
+.grid th.row-number {
   z-index: 2;
+  background: var(--vscode-editorGroupHeader-tabsBackground, var(--vscode-editor-background));
+}
+
+.grid td.pending {
+  color: var(--vscode-descriptionForeground);
+}
+
+.grid td.extra {
+  font-style: italic;
+}
+
+.grid tr.selected-row td {
+  background: var(--vscode-editor-lineHighlightBackground, rgba(128, 128, 128, 0.12));
+}
+
+.grid tr.selected-row td.row-number {
+  color: var(--vscode-editorLineNumber-activeForeground);
+}
+
+.grid tr td.selected-cell {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.grid tr td.match {
+  background: var(--vscode-editor-findMatchHighlightBackground);
+}
+
+.grid tr td.current-match {
+  background: var(--vscode-editor-findMatchBackground);
+  outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder));
+  outline-offset: -1px;
+}
+
+/* 横にスクロールしても下の列が透けないよう、行番号の列は不透明にする */
+.grid tr.selected-row td.row-number {
+  background: var(--vscode-editor-background);
 }

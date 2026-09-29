@@ -4,6 +4,7 @@ import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
 import { SparseIndex } from './index/sparseIndex';
 import { errorMessage, JobHandle, JobMessage, JobRunner } from './jobs';
 import {
+  ContextCommand,
   DelimiterId,
   EncodingChoice,
   EncodingId,
@@ -121,6 +122,10 @@ export class CsvSession {
         this.env.post({ type: 'error', message: errorMessage(error) });
       }
     }
+  }
+
+  contextCommand(_command: ContextCommand, _row: number, _column: number): void {
+    throw new Error('not implemented');
   }
 
   fileChanged(): void {

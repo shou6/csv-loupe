@@ -238,6 +238,20 @@ suite('CsvSession', () => {
     await session.dispose();
   });
 
+  test('右クリックメニューのコマンドを、対象のセルと一緒に Webview へ送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    session.contextCommand('copyRow', 2, 1);
+    assert.deepStrictEqual(env.messages[env.messages.length - 1], {
+      type: 'contextCommand',
+      command: 'copyRow',
+      row: 2,
+      column: 1,
+    });
+    await session.dispose();
+  });
+
   test('ファイルの変更を知らせる', async () => {
     const env = new FakeEnvironment(utf8(csv(1)));
     const session = new CsvSession(env);

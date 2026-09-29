@@ -94,4 +94,32 @@ suite('CSV Lens のエディタ', () => {
     assert.strictEqual(message.delimiter, 'tab');
     assert.deepStrictEqual(message.header, ['a', 'b']);
   });
+
+  test('右クリックメニューのコマンドを、対象のセルと一緒に Webview へ送る', async () => {
+    const uri = await open('menu.csv', 'a,b\n1,2\n');
+    await init(uri);
+    await vscode.commands.executeCommand('csvLens.copyCell', {
+      webview: 'csvLens.editor',
+      webviewSection: 'cell',
+      row: 1,
+      column: 1,
+    });
+    const message = await waitFor(
+      () => lastOf(testApi.messages(uri), 'contextCommand'),
+      'contextCommand'
+    );
+    assert.deepStrictEqual(message, {
+      type: 'contextCommand',
+      command: 'copyCell',
+      row: 1,
+      column: 1,
+    });
+  });
+
+  test('Webview から頼まれた文字列をクリップボードに入れる', async () => {
+    const uri = await open('copy.csv', 'a,b\n1,2\n');
+    await init(uri);
+    await testApi.send(uri, { type: 'copy', text: '1\t2' });
+    assert.strictEqual(await vscode.env.clipboard.readText(), '1\t2');
+  });
 });

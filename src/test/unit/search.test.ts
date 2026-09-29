@@ -106,6 +106,19 @@ suite('searchRecords', () => {
     assert.deepStrictEqual(header.hits, []);
   });
 
+  test('ヘッダーなし（データの最初のレコードが 0）のときは、先頭のレコードも Row 1 として探す', async () => {
+    const reports: SearchProgress[] = [];
+    await searchRecords(new MemorySource(utf8(text)), UTF8, query('name'), {
+      limit: 100,
+      firstDataRecord: 0,
+      onProgress: (progress) => reports.push(progress),
+    });
+    assert.deepStrictEqual(
+      reports.flatMap((r) => r.hits).map((h) => [h.row, h.column]),
+      [[1, 1]]
+    );
+  });
+
   test('一覧は上限までにし、件数は最後まで数える', async () => {
     let rows = 'v\n';
     for (let i = 0; i < 50; i++) {

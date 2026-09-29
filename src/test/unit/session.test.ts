@@ -153,6 +153,62 @@ suite('CsvSession', () => {
     );
   });
 
+  test('ヘッダーの有無を判別して送る。ヘッダーなしなら先頭のレコードを Row 1 にする', async () => {
+    const env = new FakeEnvironment(utf8('1,01140,01,A\n1,01160,01,B\n1,01171,01,C\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    const init = env.lastInit();
+    assert.deepStrictEqual(
+      [init.hasHeader, init.headerConfident, init.header, init.columnCount, init.rowsCounted],
+      [false, true, [], 4, 3]
+    );
+    assert.deepStrictEqual(init.rows[0], { row: 1, line: 1, cells: ['1', '01140', '01', 'A'] });
+    await session.dispose();
+  });
+
+  test('ヘッダーの有無を切り替えると読み直し、確信ありとして送る', async () => {
+    const env = new FakeEnvironment(utf8('1,01140,01,A\n1,01160,01,B\n1,01171,01,C\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'setHeader', hasHeader: true });
+    const init = env.lastInit();
+    assert.deepStrictEqual(
+      [init.hasHeader, init.headerConfident, init.header, init.rowsCounted],
+      [true, true, ['1', '01140', '01', 'A'], 2]
+    );
+    assert.deepStrictEqual(init.rows[0].cells, ['1', '01160', '01', 'B']);
+    await session.dispose();
+  });
+
+  test('ヘッダーなしの大きなファイルは、すべてのレコードを行として数え、読み、検索する', async () => {
+    let text = '';
+    for (let i = 1; i <= 1000; i++) {
+      text += i + ',' + i * 2 + '\n';
+    }
+    const env = new FakeEnvironment(utf8(text));
+    const session = new CsvSession(env);
+    await session.start();
+    assert.strictEqual(env.lastInit().hasHeader, false);
+    await waitUntil(() => countDone(env), '行数を数え終える');
+    assert.strictEqual(env.of('progress').pop()?.rowsCounted, 1000);
+    await session.handle({ type: 'requestRows', requestId: 1, from: 1000, count: 5 });
+    assert.deepStrictEqual(
+      env.of('rows')[0].rows.map((r) => [r.row, r.cells]),
+      [[1000, ['1000', '2000']]]
+    );
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: '1', caseSensitive: true, wholeCell: true },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    assert.deepStrictEqual(
+      env.of('findProgress').flatMap((m) => m.hits.map((h) => [h.row, h.column])),
+      [[1, 0]]
+    );
+    await session.dispose();
+  });
+
   test('Webview の準備ができたら、最新の init と途中経過を送り直す', async () => {
     const env = new FakeEnvironment(utf8(csv(1000)));
     const session = new CsvSession(env);

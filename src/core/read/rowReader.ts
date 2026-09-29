@@ -18,7 +18,8 @@ export interface InitialRows {
 export async function readInitial(
   source: ByteSource,
   format: CsvFormat,
-  maxRows: number
+  maxRows: number,
+  _hasHeader = true
 ): Promise<InitialRows> {
   const decoder = createDecoder(format.encoding);
   const delimiter = delimiterChar(format.delimiter);
@@ -52,7 +53,8 @@ export async function readRows(
   index: SparseIndex,
   fromRow: number,
   count: number,
-  rowLimit: number
+  rowLimit: number,
+  _firstDataRecord = 1
 ): Promise<RowData[]> {
   const first = Math.max(1, fromRow);
   const last = Math.min(fromRow + count - 1, rowLimit);

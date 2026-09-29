@@ -227,6 +227,26 @@ suite('readInitial', () => {
     });
   });
 
+  test('ヘッダーなしのときは、先頭のレコードを Row 1 にする', async () => {
+    const result = await readInitial(new MemorySource(utf8('a,b\n"c\nd",e\n')), UTF8, 10, false);
+    assert.deepStrictEqual(result, {
+      header: [],
+      rows: [
+        { row: 1, line: 1, cells: ['a', 'b'] },
+        { row: 2, line: 2, cells: ['c\nd', 'e'] },
+      ],
+      complete: true,
+    });
+  });
+
+  test('ヘッダーなしでも、maxRows 行で止めて最後まで読んだかを返す', async () => {
+    const records = (n: number) => Array.from({ length: n }, (_, i) => i + ',x').join('\n') + '\n';
+    const over = await readInitial(new MemorySource(utf8(records(101))), UTF8, 100, false);
+    assert.deepStrictEqual([over.rows.length, over.complete], [100, false]);
+    const exact = await readInitial(new MemorySource(utf8(records(100))), UTF8, 100, false);
+    assert.deepStrictEqual([exact.rows.length, exact.complete], [100, true]);
+  });
+
   test('区切り文字と文字コードに従う', async () => {
     const format: CsvFormat = { encoding: 'utf16le', delimiter: 'tab', dataStart: 0 };
     const result = await readInitial(new MemorySource(utf16le('名前\tx\n田中\ty\n')), format, 10);
@@ -269,6 +289,20 @@ suite('readRows', () => {
       [30, 31, 32]
     );
     assert.deepStrictEqual(await readRows(source, UTF8, index, 101, 5, 100), []);
+  });
+
+  test('ヘッダーなし（データの最初のレコードが 0）のときは、先頭のレコードを Row 1 として読む', async () => {
+    const { source, index, lines } = await indexed(100);
+    const rows = await readRows(source, UTF8, index, 1, 1, 101, 0);
+    assert.deepStrictEqual(rows, [{ row: 1, line: 1, cells: ['id', 'text'] }]);
+    const later = await readRows(source, UTF8, index, 51, 2, 101, 0);
+    assert.deepStrictEqual(
+      later.map((r) => [r.row, r.line, r.cells[0]]),
+      [
+        [51, lines[50], '50'],
+        [52, lines[51], '51'],
+      ]
+    );
   });
 
   test('索引が無くても（記録点が先頭だけでも）先頭から読んで返す', async () => {

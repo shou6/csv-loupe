@@ -44,6 +44,7 @@ export type WebviewMessage =
   | { type: 'cancelFind' }
   | { type: 'setEncoding'; encoding: EncodingChoice }
   | { type: 'setDelimiter'; delimiter: DelimiterId }
+  | { type: 'setHeader'; hasHeader: boolean }
   | { type: 'reload' }
   | { type: 'copy'; text: string }
   | { type: 'openSource'; line: number };
@@ -58,7 +59,14 @@ export interface InitMessage {
   /** 文字コードの判定に確信があるか */
   encodingConfident: boolean;
   delimiter: DelimiterId;
+  /** 先頭のレコードをヘッダーとして扱うか */
+  hasHeader: boolean;
+  /** ヘッダーの有無の判別に確信があるか */
+  headerConfident: boolean;
+  /** ヘッダー。ヘッダーなしのときは空 */
   header: string[];
+  /** 列の数（先頭の行のうち最も多いもの） */
+  columnCount: number;
   /** 先頭の行（最大 100 行） */
   rows: RowData[];
   /** その時点までに数えた行数 */

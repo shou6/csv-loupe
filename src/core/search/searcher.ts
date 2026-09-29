@@ -28,6 +28,8 @@ export interface SearchOptions {
   onProgress: (progress: SearchProgress) => void;
   /** true を返したら止める。止めたときは done を知らせない */
   shouldStop?: () => boolean;
+  /** データの最初のレコード。ヘッダーありなら 1、なしなら 0 */
+  firstDataRecord?: number;
 }
 
 /** CSV 全体（ヘッダーを除く）から、条件に一致するセルを探す */

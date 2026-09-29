@@ -6,6 +6,8 @@
 
 A viewer for developers who want to check what is inside a CSV or TSV file, including large ones. It does not edit or analyze the data. It shortens the time from "what is in this file?" to the answer.
 
+![A CSV file opened in CSV Lens](images/main.png)
+
 ## Features
 
 - **Read-only**: opens `.csv` and `.tsv` files as a table by default and never writes to the file.
@@ -24,6 +26,26 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 - **Source location**: shows the Row and the line in the source file, and opens the file in the text editor at that line.
 - **File change notice**: when the file changes on disk, CSV Lens shows a notice with a **Reload** button.
 - **Colors**: its own color scheme with a teal accent and alternating row colors, following the light or dark theme. High contrast themes use the theme colors.
+
+## Screenshots
+
+### Find
+
+Searches the whole file and lists each match by Row and column.
+
+![Find with the list of matches](images/find.png)
+
+### Record View
+
+Shows the selected row vertically, including values with line breaks.
+
+![Record View beside the table](images/record-view.png)
+
+### Large files
+
+Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
+
+![A file with 1,000,000 rows](images/large-file.png)
 
 ## Usage
 

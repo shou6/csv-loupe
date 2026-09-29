@@ -1,6 +1,13 @@
-import { delimiterChar } from '../core/csv/delimiter';
+import { DELIMITERS, delimiterChar } from '../core/csv/delimiter';
 import { formatRecord } from '../core/csv/format';
-import { ContextCommand, HostMessage, InitMessage, RowData } from '../core/protocol';
+import {
+  ContextCommand,
+  DelimiterId,
+  EncodingChoice,
+  HostMessage,
+  InitMessage,
+  RowData,
+} from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { parseRowInput, tailStart } from '../core/view/navigation';
@@ -12,6 +19,8 @@ import { onHostMessage, post } from './vscodeApi';
 
 /** 表示行数の候補。0 は All（全行） */
 const PEEK_SIZES = [1, 10, 100, 0];
+/** 画面で選べる文字コード */
+const ENCODINGS: EncodingChoice[] = ['utf8', 'shiftjis', 'utf16le', 'utf16be'];
 /** 行のキャッシュの上限。超えたら表示中の付近以外を捨てる */
 const CACHE_LIMIT = 20_000;
 
@@ -26,6 +35,8 @@ interface State {
   selected: CellPosition | undefined;
   wrap: boolean;
   error: string | undefined;
+  /** 表示中に元のファイルが変わった */
+  fileChanged: boolean;
 }
 
 const state: State = {
@@ -37,6 +48,7 @@ const state: State = {
   selected: undefined,
   wrap: false,
   error: undefined,
+  fileChanged: false,
 };
 
 const cache = new Map<number, RowData>();
@@ -310,10 +322,8 @@ function renderToolbar(): void {
       className: 'counts',
       text: rowCountLabel(state.rowsCounted, state.countDone, init.header.length, t),
     }),
-    el('span', {
-      text: t('Encoding: {0}', encodingLabel(init.encoding, init.encodingConfident)),
-    }),
-    el('span', { text: t('Delimiter: {0}', delimiterLabel(init.delimiter, t)) })
+    encodingSelect(init),
+    delimiterSelect(init)
   );
   const sizes = el(
     'div',
@@ -374,10 +384,75 @@ function renderToolbar(): void {
   findPanel.render();
 }
 
+/** 文字コードの表示と切り替え。判定に確信がなければ ? を付けて目立たせる */
+function encodingSelect(init: InitMessage): HTMLElement {
+  const current: EncodingChoice = init.encoding === 'utf8bom' ? 'utf8' : init.encoding;
+  const select = el(
+    'select',
+    {
+      className: init.encodingConfident ? '' : 'uncertain',
+      attrs: { 'aria-label': t('Encoding') },
+      on: {
+        change: () => post({ type: 'setEncoding', encoding: select.value as EncodingChoice }),
+      },
+    },
+    ...ENCODINGS.map((encoding) => {
+      const option = el('option', {
+        text:
+          encoding === current
+            ? encodingLabel(init.encoding, init.encodingConfident)
+            : encodingLabel(encoding, true),
+        attrs: { value: encoding },
+      });
+      option.selected = encoding === current;
+      return option;
+    })
+  );
+  select.title = init.encodingConfident
+    ? t('Encoding')
+    : t('The encoding was guessed. Choose another one if the text looks wrong.');
+  return el('label', { className: 'picker' }, el('span', { text: t('Encoding') }), select);
+}
+
+function delimiterSelect(init: InitMessage): HTMLElement {
+  const select = el(
+    'select',
+    {
+      attrs: { 'aria-label': t('Delimiter') },
+      on: {
+        change: () => post({ type: 'setDelimiter', delimiter: select.value as DelimiterId }),
+      },
+    },
+    ...DELIMITERS.map((delimiter) => {
+      const option = el('option', {
+        text: delimiterLabel(delimiter, t),
+        attrs: { value: delimiter },
+      });
+      option.selected = delimiter === init.delimiter;
+      return option;
+    })
+  );
+  return el('label', { className: 'picker' }, el('span', { text: t('Delimiter') }), select);
+}
+
 function renderBanners(): void {
   const items: HTMLElement[] = [];
   if (state.error) {
     items.push(el('div', { className: 'banner error', text: state.error }));
+  }
+  if (state.fileChanged) {
+    items.push(
+      el(
+        'div',
+        { className: 'banner' },
+        el('span', { text: t('The file has changed on disk.') + ' ' }),
+        el('button', {
+          className: 'link',
+          text: t('Reload'),
+          on: { click: () => post({ type: 'reload' }) },
+        })
+      )
+    );
   }
   if (notice) {
     items.push(el('div', { className: 'banner', text: notice }));
@@ -395,6 +470,7 @@ function onInit(message: InitMessage): void {
   state.rowsCounted = message.rowsCounted;
   state.countDone = message.countDone;
   state.error = undefined;
+  state.fileChanged = false;
   state.peekStart = 1;
   state.selected = undefined;
   notice = undefined;
@@ -458,6 +534,10 @@ function onMessage(message: HostMessage): void {
       return;
     case 'contextCommand':
       runContextCommand(message.command, { row: message.row, column: message.column });
+      return;
+    case 'fileChanged':
+      state.fileChanged = true;
+      renderBanners();
       return;
     case 'error':
       state.error = message.message;

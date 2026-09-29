@@ -9,8 +9,6 @@
   "Tab": "タブ",
   "Semicolon": "セミコロン",
   "Pipe": "パイプ",
-  "Encoding: {0}": "文字コード: {0}",
-  "Delimiter: {0}": "区切り文字: {0}",
   "Rows to show": "表示する行数",
   "1 row": "1 行",
   "All": "すべて",
@@ -40,5 +38,10 @@
   "Enter a row number.": "行番号を入れてください。",
   "Go to Row": "行へ移動",
   "Tail": "末尾",
-  "Show the last rows": "末尾の行を表示"
+  "Show the last rows": "末尾の行を表示",
+  "Encoding": "文字コード",
+  "Delimiter": "区切り文字",
+  "The encoding was guessed. Choose another one if the text looks wrong.": "文字コードは推定です。文字化けしている場合は、別のものを選んでください。",
+  "The file has changed on disk.": "ファイルが変更されました。",
+  "Reload": "再読み込み"
 }

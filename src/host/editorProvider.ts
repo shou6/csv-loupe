@@ -52,6 +52,7 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
       panel.webview.onDidReceiveMessage((message: WebviewMessage) => {
         void session.handle(message);
       }),
+      this.watch(uri, () => session.fileChanged()),
       panel.onDidChangeViewState(() => {
         if (panel.active) {
           this.activeSession = session;
@@ -70,6 +71,22 @@ export class CsvLensEditorProvider implements vscode.CustomReadonlyEditorProvide
       void session.dispose();
     });
     void session.start();
+  }
+
+  /** 元のファイルの変更を監視する。ワークスペースの外のファイルも、親フォルダを基準にして監視できる */
+  private watch(uri: vscode.Uri, onChange: () => void): vscode.Disposable {
+    const folder = vscode.Uri.joinPath(uri, '..');
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(folder, path.posix.basename(uri.path)),
+      true,
+      false,
+      false
+    );
+    return vscode.Disposable.from(
+      watcher,
+      watcher.onDidChange(onChange),
+      watcher.onDidDelete(onChange)
+    );
   }
 
   private environment(uri: vscode.Uri, panel: vscode.WebviewPanel): SessionEnvironment {

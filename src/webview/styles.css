@@ -458,3 +458,27 @@ button.link:hover {
   text-decoration: underline;
   background: transparent;
 }
+
+.picker {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+select {
+  padding: 1px 4px;
+  color: var(--vscode-dropdown-foreground);
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border, transparent);
+  border-radius: 2px;
+  font: inherit;
+}
+
+select:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+select.uncertain {
+  border-color: var(--vscode-inputValidation-warningBorder, #b89500);
+}

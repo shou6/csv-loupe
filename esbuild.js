@@ -23,28 +23,49 @@ const esbuildProblemMatcherPlugin = {
   },
 };
 
-async function main() {
-  const ctx = await esbuild.context({
+/** バンドルの一覧。拡張機能ホスト（node）と Webview（browser）で分ける */
+const builds = [
+  {
     entryPoints: ['src/extension.ts'],
-    bundle: true,
-    format: 'cjs',
-    minify: production,
-    sourcemap: !production,
-    sourcesContent: false,
     platform: 'node',
+    format: 'cjs',
     outfile: 'dist/extension.js',
     external: ['vscode'],
-    logLevel: 'silent',
-    plugins: [
-      /* add to the end of plugins array */
-      esbuildProblemMatcherPlugin,
-    ],
-  });
+  },
+  {
+    entryPoints: ['src/webview/main.ts'],
+    platform: 'browser',
+    format: 'iife',
+    outfile: 'dist/webview.js',
+  },
+  {
+    entryPoints: ['src/webview/styles.css'],
+    outfile: 'dist/webview.css',
+  },
+];
+
+async function main() {
+  const contexts = await Promise.all(
+    builds.map((options) =>
+      esbuild.context({
+        ...options,
+        bundle: true,
+        minify: production,
+        sourcemap: !production,
+        sourcesContent: false,
+        logLevel: 'silent',
+        plugins: [
+          /* add to the end of plugins array */
+          esbuildProblemMatcherPlugin,
+        ],
+      })
+    )
+  );
   if (watch) {
-    await ctx.watch();
+    await Promise.all(contexts.map((ctx) => ctx.watch()));
   } else {
-    await ctx.rebuild();
-    await ctx.dispose();
+    await Promise.all(contexts.map((ctx) => ctx.rebuild()));
+    await Promise.all(contexts.map((ctx) => ctx.dispose()));
   }
 }
 

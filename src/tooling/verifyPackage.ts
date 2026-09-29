@@ -6,6 +6,7 @@
 export interface PackageManifest {
   main?: string;
   l10n?: string;
+  /** package.json の files（許可リスト） */
   files?: string[];
 }
 
@@ -53,6 +54,13 @@ export function checkPackageFiles(
   if (manifest.l10n) {
     const dir = normalize(manifest.l10n).replace(/\/$/, '');
     allowed.push(new RegExp('^' + escapeRegExp(dir) + '/bundle\\.l10n(\\.[a-z-]+)?\\.json$'));
+  }
+  // Worker や Webview のバンドルなど、files にワイルドカードなしで名指しした dist のファイル
+  for (const entry of (manifest.files ?? []).map(normalize)) {
+    if (/^dist\/[^*?{}[\]]+$/.test(entry) && !required.includes(entry)) {
+      allowed.push(new RegExp('^' + escapeRegExp(entry) + '$'));
+      required.push(entry);
+    }
   }
   return {
     unexpected: files.filter((file) => !allowed.some((pattern) => pattern.test(file))),

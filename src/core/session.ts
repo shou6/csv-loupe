@@ -1,28 +1,245 @@
-import { JobRunner } from './jobs';
-import { EncodingId, HostMessage, WebviewMessage } from './protocol';
+import { delimiterForFileName } from './csv/delimiter';
+import { CsvFormat } from './csv/types';
+import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
+import { SparseIndex } from './index/sparseIndex';
+import { errorMessage, JobHandle, JobMessage, JobRunner } from './jobs';
+import {
+  DelimiterId,
+  EncodingChoice,
+  EncodingId,
+  HostMessage,
+  InitMessage,
+  WebviewMessage,
+} from './protocol';
+import { readInitial, readRows } from './read/rowReader';
 import { ByteSource } from './source/byteSource';
 
+/** 開いた直後に送る行数 */
+export const INITIAL_ROWS = 100;
+/** 文字コードの判定に使う先頭のバイト数 */
+const HEAD_SIZE = 64 * 1024;
+/** 1 回の要求で返す行数の上限 */
+const MAX_ROWS_PER_REQUEST = 1000;
+
+/** セッションが頼る外側の機能。拡張機能ホストでは vscode の API で、テストではフェイクで実装する */
 export interface SessionEnvironment {
   readonly fileName: string;
+  /** 翻訳の表（vscode.l10n.bundle） */
   readonly l10n: Record<string, string> | undefined;
+  /** ファイルを開き、そのファイルでジョブを動かすものと一緒に返す */
   open(): Promise<{ source: ByteSource; runner: JobRunner }>;
   post(message: HostMessage): void;
   copy(text: string): Promise<void>;
+  /** 標準のテキストエディタで元のファイルを開き、line 行目へ移動する */
   openSource(line: number, encoding: EncodingId): Promise<void>;
 }
 
+/** 読み込んだファイルの状態。読み直すたびに作り直す */
+interface Loaded {
+  generation: number;
+  source: ByteSource;
+  runner: JobRunner;
+  format: CsvFormat;
+  index: SparseIndex;
+  initialRows: number;
+  rowsCounted: number;
+  countDone: boolean;
+  init: InitMessage;
+}
+
+/**
+ * 開いている 1 つのファイルを受け持つ。Webview からのメッセージに応じて読み、結果を送る。
+ * vscode に依存しない。
+ */
 export class CsvSession {
+  private generation = 0;
+  private loaded: Loaded | undefined;
+  private indexJob: JobHandle | undefined;
+  /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
+  private encodingChoice: EncodingChoice | undefined;
+  private delimiterChoice: DelimiterId | undefined;
+
   constructor(private readonly env: SessionEnvironment) {}
+
   start(): Promise<void> {
-    throw new Error('not implemented');
+    return this.load();
   }
-  handle(_message: WebviewMessage): Promise<void> {
-    throw new Error('not implemented');
+
+  async handle(message: WebviewMessage): Promise<void> {
+    const loaded = this.loaded;
+    try {
+      switch (message.type) {
+        case 'ready':
+          if (loaded) {
+            this.env.post(loaded.init);
+            this.env.post(progressMessage(loaded));
+          }
+          break;
+        case 'requestRows':
+          if (loaded) {
+            const rows = await readRows(
+              loaded.source,
+              loaded.format,
+              loaded.index,
+              message.from,
+              Math.min(message.count, MAX_ROWS_PER_REQUEST),
+              loaded.rowsCounted
+            );
+            if (loaded === this.loaded) {
+              this.env.post({
+                type: 'rows',
+                generation: loaded.generation,
+                requestId: message.requestId,
+                rows,
+              });
+            }
+          }
+          break;
+        case 'setEncoding':
+          this.encodingChoice = message.encoding;
+          await this.load();
+          break;
+        case 'setDelimiter':
+          this.delimiterChoice = message.delimiter;
+          await this.load();
+          break;
+        case 'reload':
+          await this.load();
+          break;
+        case 'copy':
+          await this.env.copy(message.text);
+          break;
+        case 'openSource':
+          if (loaded) {
+            await this.env.openSource(message.line, loaded.format.encoding);
+          }
+          break;
+      }
+    } catch (error) {
+      // 読み直しで閉じたファイルを読んでいた場合などは、古い結果なので知らせない
+      if (loaded === this.loaded) {
+        this.env.post({ type: 'error', message: errorMessage(error) });
+      }
+    }
   }
+
   fileChanged(): void {
-    throw new Error('not implemented');
+    this.env.post({ type: 'fileChanged' });
   }
-  dispose(): Promise<void> {
-    throw new Error('not implemented');
+
+  async dispose(): Promise<void> {
+    this.generation++;
+    this.stopJobs();
+    const loaded = this.loaded;
+    this.loaded = undefined;
+    await loaded?.source.close().catch(() => undefined);
   }
+
+  private stopJobs(): void {
+    this.indexJob?.cancel();
+    this.indexJob = undefined;
+  }
+
+  private async load(): Promise<void> {
+    const generation = ++this.generation;
+    this.stopJobs();
+    const previous = this.loaded;
+    this.loaded = undefined;
+    await previous?.source.close().catch(() => undefined);
+    let source: ByteSource | undefined;
+    try {
+      const opened = await this.env.open();
+      source = opened.source;
+      if (generation !== this.generation) {
+        await source.close();
+        return;
+      }
+      const head = await source.read(0, HEAD_SIZE);
+      const detection = this.encodingChoice
+        ? { encoding: resolveEncoding(this.encodingChoice, head), confident: true }
+        : detectEncoding(head, head.length >= source.size);
+      const format: CsvFormat = {
+        encoding: detection.encoding,
+        delimiter: this.delimiterChoice ?? delimiterForFileName(this.env.fileName),
+        dataStart: bomLength(detection.encoding, head),
+      };
+      const initial = await readInitial(source, format, INITIAL_ROWS);
+      if (generation !== this.generation) {
+        await source.close();
+        return;
+      }
+      const index = new SparseIndex(format.dataStart);
+      const loaded: Loaded = {
+        generation,
+        source,
+        runner: opened.runner,
+        format,
+        index,
+        initialRows: initial.rows.length,
+        rowsCounted: initial.rows.length,
+        countDone: initial.complete,
+        init: {
+          type: 'init',
+          generation,
+          fileName: this.env.fileName,
+          encoding: detection.encoding,
+          encodingConfident: detection.confident,
+          delimiter: format.delimiter,
+          header: initial.header,
+          rows: initial.rows,
+          rowsCounted: initial.rows.length,
+          countDone: initial.complete,
+          l10n: this.env.l10n,
+        },
+      };
+      this.loaded = loaded;
+      this.env.post(loaded.init);
+      if (initial.complete) {
+        // 先頭を読んだ時点で最後まで読めた。行数は確定しているので数えない
+        const records = initial.header.length > 0 ? initial.rows.length + 1 : 0;
+        index.extend([], [], records);
+        index.markComplete();
+      } else {
+        this.indexJob = opened.runner.run({ kind: 'index', format }, (message) =>
+          this.onIndexMessage(loaded, message)
+        );
+      }
+    } catch (error) {
+      if (generation === this.generation) {
+        await source?.close().catch(() => undefined);
+        this.env.post({ type: 'error', message: errorMessage(error) });
+      }
+    }
+  }
+
+  private onIndexMessage(loaded: Loaded, message: JobMessage): void {
+    if (loaded !== this.loaded) {
+      return;
+    }
+    if (message.kind === 'error') {
+      this.env.post({ type: 'error', message: message.message });
+      return;
+    }
+    const progress = message.progress;
+    loaded.index.extend(progress.offsets, progress.lines, progress.recordCount);
+    const counted = Math.max(progress.recordCount - 1, 0);
+    if (progress.done) {
+      loaded.index.markComplete();
+      loaded.rowsCounted = counted;
+      loaded.countDone = true;
+    } else {
+      // 先頭の行は読めているので、数えた件数がそれより少なくても減らさない
+      loaded.rowsCounted = Math.max(loaded.initialRows, counted);
+    }
+    this.env.post(progressMessage(loaded));
+  }
+}
+
+function progressMessage(loaded: Loaded): HostMessage {
+  return {
+    type: 'progress',
+    generation: loaded.generation,
+    rowsCounted: loaded.rowsCounted,
+    countDone: loaded.countDone,
+  };
 }

@@ -33,6 +33,13 @@ const builds = [
     external: ['vscode'],
   },
   {
+    // 索引の作成と検索を、拡張機能ホストの主スレッドの外で行う
+    entryPoints: ['src/worker/worker.ts'],
+    platform: 'node',
+    format: 'cjs',
+    outfile: 'dist/worker.js',
+  },
+  {
     entryPoints: ['src/webview/main.ts'],
     platform: 'browser',
     format: 'iife',

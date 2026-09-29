@@ -31,6 +31,7 @@
   "l10n": "./l10n",
   "files": [
     "dist/extension.js",
+    "dist/worker.js",
     "dist/webview.js",
     "dist/webview.css",
     "resources/**",

@@ -18,6 +18,8 @@ export interface BuildIndexOptions {
   /** 何チャンクごとに途中経過を知らせるか */
   reportEveryChunks?: number;
   onProgress: (progress: IndexProgress) => void;
+  /** true を返したら、次のチャンクを読まずに止める */
+  shouldStop?: () => boolean;
 }
 
 /**
@@ -44,6 +46,9 @@ export async function buildIndex(
   let chunks = 0;
   let pos = format.dataStart;
   while (pos < size) {
+    if (options.shouldStop?.()) {
+      return recordCount;
+    }
     const chunk = await source.read(pos, Math.min(chunkSize, size - pos));
     if (chunk.length === 0) {
       break;

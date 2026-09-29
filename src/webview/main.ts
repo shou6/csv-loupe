@@ -541,6 +541,9 @@ function onMessage(message: HostMessage): void {
       return;
     case 'error':
       state.error = message.message;
+      // 行の要求が失敗したときも、次の要求を送れるようにする
+      inFlight = undefined;
+      queued = undefined;
       renderBanners();
       return;
     default:

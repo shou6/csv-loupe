@@ -47,6 +47,11 @@ export class SparseIndex {
     this.recordCount = recordCount;
   }
 
+  /** 記録点に使っているメモリ（バイト） */
+  get byteLength(): number {
+    return this.offsets.byteLength + this.lines.byteLength;
+  }
+
   markComplete(): void {
     this.complete = true;
   }

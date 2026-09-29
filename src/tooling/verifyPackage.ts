@@ -6,6 +6,7 @@
 export interface PackageManifest {
   main?: string;
   l10n?: string;
+  files?: string[];
 }
 
 /** どの拡張機能でも入ってよいファイル */

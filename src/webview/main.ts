@@ -5,6 +5,7 @@ import { createTranslator, Translate } from '../core/translate';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { el } from './dom';
 import { CellPosition, GridView } from './grid';
+import { RecordView } from './recordView';
 import { onHostMessage, post } from './vscodeApi';
 
 /** 表示行数の候補。0 は All（全行） */
@@ -47,6 +48,26 @@ let t: Translate = createTranslator(undefined);
 const app = document.getElementById('app') as HTMLElement;
 const toolbar = el('div', { className: 'toolbar' });
 const banners = el('div', { className: 'banners' });
+const recordView = new RecordView(() => {
+  recordView.hide();
+  renderToolbar();
+});
+
+function renderRecord(): void {
+  const selected = state.selected;
+  recordView.render(
+    state.init?.header ?? [],
+    selected ? cache.get(selected.row) : undefined,
+    selected?.column,
+    t
+  );
+}
+
+function openRecordView(): void {
+  recordView.show();
+  renderToolbar();
+  renderRecord();
+}
 
 /** 表示中の範囲の行数 */
 function displayCount(): number {
@@ -75,6 +96,7 @@ const grid = new GridView(
     onSelect: (cell) => {
       state.selected = cell;
       grid.refresh();
+      renderRecord();
     },
   }
 );
@@ -127,10 +149,14 @@ function runContextCommand(command: ContextCommand, cell: CellPosition): void {
     case 'copyRow':
       copyRow(cell.row);
       break;
+    case 'openRecordView':
+      openRecordView();
+      break;
     default:
       break;
   }
   grid.refresh();
+  renderRecord();
 }
 
 function setPeekSize(size: number): void {
@@ -185,7 +211,22 @@ function renderToolbar(): void {
       },
     },
   });
-  toolbar.replaceChildren(info, el('div', { className: 'controls' }, sizes, wrap));
+  const record = el('button', {
+    className: recordView.open ? 'selected' : '',
+    text: t('Record View'),
+    attrs: { 'aria-pressed': String(recordView.open) },
+    on: {
+      click: () => {
+        if (recordView.open) {
+          recordView.hide();
+          renderToolbar();
+        } else {
+          openRecordView();
+        }
+      },
+    },
+  });
+  toolbar.replaceChildren(info, el('div', { className: 'controls' }, sizes, wrap, record));
 }
 
 function renderBanners(): void {
@@ -221,6 +262,7 @@ function onInit(message: InitMessage): void {
   } else {
     grid.scrollToIndex(0);
   }
+  renderRecord();
 }
 
 function onMessage(message: HostMessage): void {
@@ -250,6 +292,7 @@ function onMessage(message: HostMessage): void {
       const next = queued;
       queued = undefined;
       grid.refresh();
+      renderRecord();
       if (next && !inFlight) {
         requestRows(next.from, next.count);
       }
@@ -277,7 +320,11 @@ grid.element.addEventListener('keydown', (event) => {
   }
 });
 
-app.replaceChildren(toolbar, banners, grid.element);
+app.replaceChildren(
+  toolbar,
+  banners,
+  el('div', { className: 'main' }, grid.element, recordView.element)
+);
 onHostMessage(onMessage);
 renderBanners();
 post({ type: 'ready' });

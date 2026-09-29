@@ -229,3 +229,92 @@ table.grid {
 .grid tr.selected-row td.row-number {
   background: var(--vscode-editor-background);
 }
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.main > .table-container {
+  min-width: 0;
+}
+
+button.icon {
+  padding: 0 6px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.record-view {
+  display: flex;
+  flex-direction: column;
+  width: 38%;
+  min-width: 240px;
+  max-width: 640px;
+  overflow: hidden;
+  border-left: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  background: var(--vscode-sideBar-background, var(--vscode-editor-background));
+}
+
+.record-view[hidden] {
+  display: none;
+}
+
+.record-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+}
+
+.record-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.record-title span:not(.strong) {
+  color: var(--vscode-descriptionForeground);
+}
+
+.strong {
+  font-weight: 600;
+}
+
+.record-list {
+  display: grid;
+  grid-template-columns: minmax(80px, max-content) 1fr;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.record-list dt,
+.record-list dd {
+  margin: 0;
+  padding: 3px 10px;
+  border-bottom: 1px solid var(--vscode-editorGroup-border, rgba(128, 128, 128, 0.25));
+}
+
+.record-list dt {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+}
+
+.record-list dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.record-list .selected {
+  background: var(--vscode-list-inactiveSelectionBackground, rgba(128, 128, 128, 0.2));
+}

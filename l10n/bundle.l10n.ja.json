@@ -14,5 +14,11 @@
   "Rows to show": "表示する行数",
   "1 row": "1 行",
   "All": "すべて",
-  "Word Wrap": "折り返し"
+  "Word Wrap": "折り返し",
+  "(column {0})": "（{0} 列目）",
+  "Close": "閉じる",
+  "Record View": "レコード表示",
+  "Select a cell to see its row.": "セルを選ぶと、その行を表示します。",
+  "Row {0}": "行 {0}",
+  "Source Line {0}": "元のファイルの {0} 行目"
 }

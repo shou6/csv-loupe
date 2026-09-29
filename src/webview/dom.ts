@@ -2,6 +2,25 @@
 
 type Child = Node | string | null | undefined | false;
 
+/**
+ * 表示用に前後の空白を詰めた値を、空白の印と一緒に要素の中身にする。
+ * 印は、先頭や末尾に空白があったことを示す（値そのものは変えない）。
+ */
+export function appendTrimmed(
+  parent: HTMLElement,
+  display: { leading: boolean; trailing: boolean },
+  text: string,
+  title: string
+): void {
+  if (display.leading) {
+    parent.append(el('span', { className: 'ws', text: '␣', title }));
+  }
+  parent.append(text);
+  if (display.trailing) {
+    parent.append(el('span', { className: 'ws', text: '␣', title }));
+  }
+}
+
 export interface ElementProps {
   className?: string;
   title?: string;

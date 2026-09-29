@@ -7,14 +7,15 @@ import {
   HostMessage,
   InitMessage,
   RowData,
+  SortDirection,
 } from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
+import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
-import { columnNames } from '../core/view/columns';
 import { parseRowInput, tailStart } from '../core/view/navigation';
 import { el } from './dom';
-import { CellPosition, GridView } from './grid';
 import { FindPanel } from './findPanel';
+import { CellPosition, GridView, SortState } from './grid';
 import { RecordView } from './recordView';
 import { onHostMessage, post } from './vscodeApi';
 
@@ -24,6 +25,8 @@ const PEEK_SIZES = [1, 10, 100, 0];
 const ENCODINGS: EncodingChoice[] = ['utf8', 'shiftjis', 'utf16le', 'utf16be'];
 /** 行のキャッシュの上限。超えたら表示中の付近以外を捨てる */
 const CACHE_LIMIT = 20_000;
+/** ソートできる行数の上限（拡張機能ホストと合わせる） */
+const SORT_LIMIT = 1_000_000;
 
 interface State {
   init: InitMessage | undefined;
@@ -31,7 +34,7 @@ interface State {
   countDone: boolean;
   /** 表示行数。0 は All */
   peekSize: number;
-  /** All 以外のときに表示する先頭の Row（Tail で変わる） */
+  /** All 以外のときに表示する先頭の位置（Tail で変わる） */
   peekStart: number;
   selected: CellPosition | undefined;
   wrap: boolean;
@@ -40,6 +43,10 @@ interface State {
   fileChanged: boolean;
   /** 列名（ヘッダーなしなら「列 1」…） */
   columns: string[];
+  /** 非表示にした列の番号 */
+  hidden: Set<number>;
+  /** 有効なソート。並べ替えが終わってから設定する */
+  sort: (SortState & { sortId: number }) | undefined;
 }
 
 const state: State = {
@@ -53,13 +60,21 @@ const state: State = {
   error: undefined,
   fileChanged: false,
   columns: [],
+  hidden: new Set(),
+  sort: undefined,
 };
 
+/** Row → 行のデータ */
 const cache = new Map<number, RowData>();
+/** ソート中の、表示の位置 → Row */
+const sortedRows = new Map<number, number>();
 let requestId = 0;
+let sortId = 0;
 /** 返事を待っている要求。1 つずつ送り、返事が来てから次を送る */
-let inFlight: { id: number; from: number; count: number } | undefined;
+let inFlight: { id: number } | undefined;
 let queued: { from: number; count: number } | undefined;
+/** ソート中の移動で、ホストに位置を尋ねている要求（要求の番号 → 列） */
+const pendingJumps = new Map<number, number>();
 
 let t: Translate = createTranslator(undefined);
 
@@ -67,6 +82,7 @@ const app = document.getElementById('app') as HTMLElement;
 const toolbar = el('div', { className: 'toolbar' });
 const banners = el('div', { className: 'banners' });
 const statusBar = el('div', { className: 'status-bar' });
+const columnsPanel = el('div', { className: 'columns-panel', attrs: { hidden: '' } });
 const goToInput = el('input', {
   className: 'goto-input',
   attrs: { type: 'text', inputmode: 'numeric', spellcheck: 'false' },
@@ -80,6 +96,37 @@ const goToInput = el('input', {
   },
 });
 
+function columnName(column: number): string {
+  return state.columns[column] ?? t('(column {0})', String(column + 1));
+}
+
+/** 列の表示・非表示のパネルを開いているか */
+function columnsOpen(): boolean {
+  return columnsPanel.hidden !== true;
+}
+
+function shownColumns(): number[] {
+  return visibleColumns(state.columns.length, state.hidden);
+}
+
+/** 表示中の範囲の先頭の位置（1 始まり） */
+function basePosition(): number {
+  return state.peekSize === 0 ? 1 : state.peekStart;
+}
+
+/** 表示中の範囲の行数 */
+function displayCount(): number {
+  if (state.peekSize === 0) {
+    return state.rowsCounted;
+  }
+  return Math.max(0, Math.min(state.peekSize, state.rowsCounted - state.peekStart + 1));
+}
+
+function rowAt(index: number): number | undefined {
+  const position = basePosition() + index;
+  return state.sort ? sortedRows.get(position) : position;
+}
+
 /** 選んだ行の Row と Source Line（元のファイルの行）を出す */
 function renderStatus(): void {
   const selected = state.selected;
@@ -88,11 +135,10 @@ function renderStatus(): void {
     statusBar.replaceChildren(el('span', { text: t('Select a cell to see its position.') }));
     return;
   }
-  const column = columnName(selected.column);
   statusBar.replaceChildren(
     el('span', { className: 'strong', text: t('Row {0}', data.row.toLocaleString('en-US')) }),
     el('span', { text: t('Source Line {0}', data.line.toLocaleString('en-US')) }),
-    el('span', { text: column }),
+    el('span', { text: columnName(selected.column) }),
     el('button', {
       className: 'link',
       text: t('Open Source at Row'),
@@ -101,8 +147,12 @@ function renderStatus(): void {
   );
 }
 
-function columnName(column: number): string {
-  return state.columns[column] ?? t('(column {0})', String(column + 1));
+/** 知らせ（一時的な案内）。次の操作で消える */
+let notice: string | undefined;
+
+function showNotice(message: string | undefined): void {
+  notice = message;
+  renderBanners();
 }
 
 /** 行数を数え終える前は使えない操作の案内 */
@@ -122,7 +172,7 @@ function goToRow(text: string): void {
     }
     return;
   }
-  jumpTo(result.row, state.selected?.column ?? 0);
+  jumpTo(result.row, state.selected?.column ?? shownColumns()[0] ?? 0);
 }
 
 /** 末尾へ移る。All 以外の表示行数のときは、末尾から表示行数ぶんを表示する */
@@ -139,6 +189,7 @@ function tail(): void {
     grid.scrollToIndex(0);
   }
 }
+
 const recordView = new RecordView(() => {
   recordView.hide();
   renderToolbar();
@@ -160,28 +211,18 @@ function openRecordView(): void {
   renderRecord();
 }
 
-/** 表示中の範囲の行数 */
-function displayCount(): number {
-  if (state.peekSize === 0) {
-    return state.rowsCounted;
-  }
-  return Math.max(0, Math.min(state.peekSize, state.rowsCounted - state.peekStart + 1));
-}
-
-function rowAt(index: number): number {
-  return (state.peekSize === 0 ? 1 : state.peekStart) + index;
-}
-
 const grid = new GridView(
   {
     header: () => state.columns,
+    columns: shownColumns,
     displayCount,
     rowAt,
     getRow: (row) => cache.get(row),
-    requestRows,
+    requestIndexes,
     wrap: () => state.wrap,
     selected: () => state.selected,
     mark: (row, column) => findPanel.mark(row, column),
+    sort: () => state.sort,
   },
   {
     onSelect: (cell) => {
@@ -190,6 +231,7 @@ const grid = new GridView(
       renderRecord();
       renderStatus();
     },
+    onHeaderClick: (column) => toggleSort(column),
   }
 );
 
@@ -198,59 +240,103 @@ const findPanel = new FindPanel({
   cancel: () => post({ type: 'cancelFind' }),
   jump: (hit) => jumpTo(hit.row, hit.column),
   columnName,
+  cleared: () => grid.refresh(),
   translate: () => t,
 });
 
-/** 知らせ（一時的な案内）。次の操作で消える */
-let notice: string | undefined;
-
-function showNotice(message: string | undefined): void {
-  notice = message;
-  renderBanners();
-}
-
-/** セルを選んで、表示する。All 以外の表示行数で範囲の外なら All に切り替える */
+/** セルを選んで表示する。非表示の列なら表示に戻す。ソート中は表示の位置をホストに尋ねる */
 function jumpTo(row: number, column: number): void {
   if (row > state.rowsCounted) {
     showNotice(t('Row {0} can be shown after row counting finishes.', row.toLocaleString('en-US')));
     return;
   }
   showNotice(undefined);
+  if (state.hidden.delete(column)) {
+    columnsChanged();
+  }
   state.selected = { row, column };
-  if (state.peekSize !== 0 && (row < state.peekStart || row >= state.peekStart + state.peekSize)) {
+  if (state.sort) {
+    const id = ++requestId;
+    pendingJumps.set(id, column);
+    post({ type: 'locateRow', requestId: id, row });
+    return;
+  }
+  revealPosition(row, column);
+}
+
+/** 表示の位置へスクロールする。All 以外の表示行数で範囲の外なら All に切り替える */
+function revealPosition(position: number, column: number): void {
+  if (
+    state.peekSize !== 0 &&
+    (position < state.peekStart || position >= state.peekStart + state.peekSize)
+  ) {
     state.peekSize = 0;
     renderToolbar();
   }
-  const index = state.peekSize === 0 ? row - 1 : row - state.peekStart;
-  grid.revealIndex(index);
+  grid.revealIndex(position - basePosition());
   grid.revealColumn(column);
   renderRecord();
   renderStatus();
 }
 
-function requestRows(from: number, count: number): void {
-  const last = Math.min(from + count - 1, state.rowsCounted);
-  if (last < from) {
+/** 表の index の範囲の行を要求する（ソート中は表示の位置で、そうでなければ Row で） */
+function requestIndexes(fromIndex: number, count: number): void {
+  const base = basePosition();
+  const first = base + Math.max(0, fromIndex);
+  const last = Math.min(base + fromIndex + count - 1, base + displayCount() - 1);
+  if (last < first) {
     return;
   }
   if (inFlight) {
-    queued = { from, count: last - from + 1 };
+    queued = { from: fromIndex, count };
     return;
   }
-  inFlight = { id: ++requestId, from, count: last - from + 1 };
-  post({ type: 'requestRows', requestId: inFlight.id, from, count: inFlight.count });
+  inFlight = { id: ++requestId };
+  post({
+    type: 'requestRows',
+    requestId: inFlight.id,
+    from: first,
+    count: last - first + 1,
+    sortId: state.sort?.sortId,
+  });
 }
 
 function pruneCache(): void {
   if (cache.size <= CACHE_LIMIT) {
     return;
   }
-  const center = rowAt(0);
+  const visible = new Set<number>();
+  for (let index = 0; index < 200; index++) {
+    const row = rowAt(index);
+    if (row !== undefined) {
+      visible.add(row);
+    }
+  }
+  const center = rowAt(0) ?? 1;
   for (const row of cache.keys()) {
-    if (Math.abs(row - center) > CACHE_LIMIT / 4) {
+    if (!visible.has(row) && Math.abs(row - center) > CACHE_LIMIT / 4) {
       cache.delete(row);
     }
   }
+}
+
+/** 見出しのクリックで、昇順 → 降順 → 元の順を切り替える */
+function toggleSort(column: number): void {
+  let direction: SortDirection | null = 'asc';
+  if (state.sort?.column === column) {
+    direction = state.sort.direction === 'asc' ? 'desc' : null;
+  }
+  if (direction !== null && !state.countDone) {
+    showNotice(t('Sorting is available after row counting finishes.'));
+    return;
+  }
+  if (direction !== null && state.rowsCounted > SORT_LIMIT) {
+    showNotice(
+      t('Sorting is available for files with up to {0} rows.', SORT_LIMIT.toLocaleString('en-US'))
+    );
+    return;
+  }
+  post({ type: 'sort', sortId: ++sortId, column, direction });
 }
 
 function copyCell(cell: CellPosition): void {
@@ -310,6 +396,90 @@ function setPeekSize(size: number): void {
   grid.scrollToIndex(0);
 }
 
+/** 列の一覧の絞り込みの文字 */
+let columnFilter = '';
+
+/** 列の表示・非表示を選ぶパネル */
+function renderColumnsPanel(): void {
+  const list = el('div', { className: 'columns-list' });
+  const filter = el('input', {
+    className: 'columns-filter',
+    attrs: { type: 'text', spellcheck: 'false', placeholder: t('Filter columns') },
+    on: {
+      input: () => {
+        columnFilter = filter.value;
+        renderColumnList(list);
+      },
+    },
+  });
+  filter.value = columnFilter;
+  const showAll = el('button', {
+    text: t('Show All'),
+    on: {
+      click: () => {
+        state.hidden.clear();
+        columnsChanged();
+      },
+    },
+  });
+  const close = el('button', {
+    className: 'icon',
+    text: '×',
+    title: t('Close'),
+    attrs: { 'aria-label': t('Close') },
+    on: { click: () => toggleColumnsPanel(false) },
+  });
+  columnsPanel.replaceChildren(
+    el('div', { className: 'columns-head' }, filter, showAll, close),
+    list
+  );
+  renderColumnList(list);
+}
+
+function renderColumnList(list: HTMLElement): void {
+  list.replaceChildren(
+    ...matchColumns(state.columns, columnFilter).map((column) => {
+      const box = el('input', {
+        attrs: { type: 'checkbox' },
+        on: {
+          change: () => {
+            if (box.checked) {
+              state.hidden.delete(column);
+            } else {
+              state.hidden.add(column);
+            }
+            columnsChanged(false);
+          },
+        },
+      });
+      box.checked = !state.hidden.has(column);
+      return el(
+        'label',
+        { className: 'columns-item', title: state.columns[column] },
+        box,
+        el('span', { text: state.columns[column] })
+      );
+    })
+  );
+}
+
+function columnsChanged(rerenderPanel = true): void {
+  grid.renderHeader();
+  renderToolbar();
+  if (rerenderPanel && columnsOpen()) {
+    renderColumnsPanel();
+  }
+}
+
+function toggleColumnsPanel(open: boolean): void {
+  columnsPanel.hidden = !open;
+  if (open) {
+    renderColumnsPanel();
+    columnsPanel.querySelector('input')?.focus();
+  }
+  renderToolbar();
+}
+
 function renderToolbar(): void {
   const init = state.init;
   if (!init) {
@@ -340,6 +510,12 @@ function renderToolbar(): void {
       })
     )
   );
+  const columnsButton = el('button', {
+    className: columnsOpen() ? 'selected' : state.hidden.size > 0 ? 'filtered' : '',
+    text: t('Columns ({0}/{1})', String(shownColumns().length), String(state.columns.length)),
+    attrs: { 'aria-pressed': String(columnsOpen()) },
+    on: { click: () => toggleColumnsPanel(!columnsOpen()) },
+  });
   const wrap = el('button', {
     className: state.wrap ? 'selected' : '',
     text: t('Word Wrap'),
@@ -376,7 +552,7 @@ function renderToolbar(): void {
   });
   toolbar.replaceChildren(
     info,
-    el('div', { className: 'controls' }, sizes, wrap, record),
+    el('div', { className: 'controls' }, sizes, columnsButton, wrap, record),
     el(
       'div',
       { className: 'find-row-bar' },
@@ -494,9 +670,15 @@ function renderBanners(): void {
 
 function onInit(message: InitMessage): void {
   t = createTranslator(message.l10n);
+  grid.whitespaceTitle = t('The value has spaces at the start or end.');
+  grid.sortTitle = t('Click to sort');
   const columns = columnNames(message.header, message.hasHeader, message.columnCount, t);
   const sameColumns = JSON.stringify(state.columns) === JSON.stringify(columns);
   state.columns = columns;
+  if (!sameColumns) {
+    state.hidden.clear();
+    columnFilter = '';
+  }
   state.init = message;
   state.rowsCounted = message.rowsCounted;
   state.countDone = message.countDone;
@@ -504,9 +686,12 @@ function onInit(message: InitMessage): void {
   state.fileChanged = false;
   state.peekStart = 1;
   state.selected = undefined;
+  state.sort = undefined;
   notice = undefined;
   findPanel.reset();
   cache.clear();
+  sortedRows.clear();
+  pendingJumps.clear();
   inFlight = undefined;
   queued = undefined;
   for (const row of message.rows) {
@@ -514,14 +699,52 @@ function onInit(message: InitMessage): void {
   }
   renderToolbar();
   renderBanners();
+  if (columnsOpen()) {
+    renderColumnsPanel();
+  }
   grid.setRowNumberDigits(String(Math.max(message.rowsCounted, 1)).length);
   if (!sameColumns) {
     grid.setHeader();
   } else {
+    grid.renderHeader();
     grid.scrollToIndex(0);
   }
   renderRecord();
   renderStatus();
+}
+
+function onSortState(message: Extract<HostMessage, { type: 'sortState' }>): void {
+  if (message.sortId !== sortId) {
+    return;
+  }
+  switch (message.status) {
+    case 'sorting':
+      showNotice(t('Sorting…'));
+      return;
+    case 'counting':
+      showNotice(t('Sorting is available after row counting finishes.'));
+      return;
+    case 'tooLarge':
+      showNotice(
+        t('Sorting is available for files with up to {0} rows.', SORT_LIMIT.toLocaleString('en-US'))
+      );
+      return;
+    case 'done':
+    case 'cleared':
+      showNotice(undefined);
+      state.sort =
+        message.status === 'done' && message.direction
+          ? { column: message.column, direction: message.direction, sortId: message.sortId }
+          : undefined;
+      sortedRows.clear();
+      // 並べ替える前の順で要求した行の返事は捨てる
+      inFlight = undefined;
+      queued = undefined;
+      state.peekStart = 1;
+      grid.renderHeader();
+      grid.scrollToIndex(0);
+      return;
+  }
 }
 
 function onMessage(message: HostMessage): void {
@@ -543,9 +766,13 @@ function onMessage(message: HostMessage): void {
       if (message.generation !== state.init?.generation || message.requestId !== inFlight?.id) {
         return;
       }
-      for (const row of message.rows) {
+      message.rows.forEach((row, i) => {
         cache.set(row.row, row);
-      }
+        const position = message.positions?.[i];
+        if (position !== undefined) {
+          sortedRows.set(position, row.row);
+        }
+      });
       inFlight = undefined;
       pruneCache();
       const next = queued;
@@ -554,8 +781,22 @@ function onMessage(message: HostMessage): void {
       renderRecord();
       renderStatus();
       if (next && !inFlight) {
-        requestRows(next.from, next.count);
+        requestIndexes(next.from, next.count);
       }
+      return;
+    }
+    case 'sortState':
+      if (message.generation === state.init?.generation) {
+        onSortState(message);
+      }
+      return;
+    case 'rowLocated': {
+      const column = pendingJumps.get(message.requestId);
+      if (column === undefined || message.generation !== state.init?.generation) {
+        return;
+      }
+      pendingJumps.delete(message.requestId);
+      revealPosition(message.position, column);
       return;
     }
     case 'findProgress':
@@ -601,6 +842,7 @@ grid.element.addEventListener('keydown', (event) => {
 
 app.replaceChildren(
   toolbar,
+  columnsPanel,
   banners,
   el('div', { className: 'main' }, grid.element, recordView.element),
   findPanel.results,

@@ -1,9 +1,10 @@
 import { RowData } from '../core/protocol';
+import { trimForDisplay } from '../core/view/cellText';
 import { computeViewport, scrollTopForRow } from '../core/view/viewport';
-import { el } from './dom';
+import { appendTrimmed, el } from './dom';
 
 /** 折り返さないときの行の高さ（CSS の .grid td と合わせる） */
-export const ROW_HEIGHT = 22;
+export const ROW_HEIGHT = 24;
 /** スクロールする要素の高さの上限。ブラウザの上限（約 3,300 万 px）より十分小さくする */
 const MAX_CONTENT_HEIGHT = 8_000_000;
 const DEFAULT_COLUMN_WIDTH = 160;
@@ -18,24 +19,35 @@ export interface CellPosition {
 
 export type CellMark = 'match' | 'current-match';
 
-/** 表に出すデータ。表示中の範囲（先頭の N 行か全行か）の対応は呼ぶ側が決める */
+export interface SortState {
+  column: number;
+  direction: 'asc' | 'desc';
+}
+
+/** 表に出すデータ。表示中の範囲（先頭の N 行か全行か、ソート中か）の対応は呼ぶ側が決める */
 export interface GridSource {
+  /** 全列の列名 */
   header(): string[];
+  /** 表に出す列の番号（元の順） */
+  columns(): number[];
   /** 表に出す行の数 */
   displayCount(): number;
-  /** 表の index 番目（0 始まり）に出す Row */
-  rowAt(index: number): number;
+  /** 表の index 番目（0 始まり）に出す Row。ソート中で、まだ分からなければ undefined */
+  rowAt(index: number): number | undefined;
   getRow(row: number): RowData | undefined;
-  /** まだ持っていない行を要求する */
-  requestRows(from: number, count: number): void;
+  /** 表の index の範囲で、まだ持っていない行を要求する */
+  requestIndexes(fromIndex: number, count: number): void;
   wrap(): boolean;
   selected(): CellPosition | undefined;
   /** 検索の一致などの印 */
   mark(row: number, column: number): CellMark | undefined;
+  sort(): SortState | undefined;
 }
 
 export interface GridEvents {
   onSelect(cell: CellPosition): void;
+  /** 見出しをクリックしたとき（ソートの切り替え） */
+  onHeaderClick(column: number): void;
 }
 
 /**
@@ -50,12 +62,16 @@ export class GridView {
   private readonly colgroup: HTMLTableColElement;
   private readonly headRow: HTMLTableRowElement;
   private readonly body: HTMLTableSectionElement;
+  /** 列幅。元の列の番号で持ち、非表示にしても保つ */
   private widths: number[] = [];
   private rowNumberWidth = 60;
   private frame = 0;
   /** プログラムから移動した先。ブラウザがスクロール位置を丸めても、その行を先頭に保つ */
   private pinned: { index: number; scrollTop: number } | undefined;
   private firstIndex = 0;
+  /** 空白の印の説明と、ソートの説明（翻訳済み） */
+  whitespaceTitle = '';
+  sortTitle = '';
 
   constructor(
     private readonly source: GridSource,
@@ -86,15 +102,47 @@ export class GridView {
 
   /** 見出し（列）が変わったとき。列幅を初期値に戻す */
   setHeader(): void {
-    const header = this.source.header();
-    this.widths = header.map(() => DEFAULT_COLUMN_WIDTH);
+    this.widths = this.source.header().map(() => DEFAULT_COLUMN_WIDTH);
     this.renderHeader();
     this.scrollToIndex(0);
   }
 
+  /** 表示する列やソートの印が変わったとき */
+  renderHeader(): void {
+    const header = this.source.header();
+    const sort = this.source.sort();
+    this.headRow.replaceChildren(
+      el('th', { className: 'row-number', text: '#' }),
+      ...this.source.columns().map((column) => {
+        const name = header[column] ?? '';
+        const resizer = el('span', { className: 'resizer', attrs: { 'aria-hidden': 'true' } });
+        resizer.addEventListener('mousedown', (event) => this.startResize(event, column));
+        const sorted = sort?.column === column ? sort.direction : undefined;
+        const th = el(
+          'th',
+          {
+            className: sorted ? 'sorted' : '',
+            title: name + (this.sortTitle ? '\n' + this.sortTitle : ''),
+            attrs: sorted ? { 'aria-sort': sorted === 'asc' ? 'ascending' : 'descending' } : {},
+            on: { click: () => this.events.onHeaderClick(column) },
+          },
+          el('span', { className: 'label', text: name }),
+          el('span', {
+            className: 'sort-mark',
+            text: sorted === 'asc' ? '▲' : sorted === 'desc' ? '▼' : '',
+          }),
+          resizer
+        );
+        return th;
+      })
+    );
+    this.renderColumns();
+    this.schedule();
+  }
+
   /** 行番号の列の幅を、行数の桁数に合わせる */
   setRowNumberDigits(digits: number): void {
-    const width = Math.max(48, 16 + digits * 9);
+    const width = Math.max(48, 20 + digits * 9);
     if (width !== this.rowNumberWidth) {
       this.rowNumberWidth = width;
       this.renderColumns();
@@ -121,8 +169,13 @@ export class GridView {
 
   /** 列が横方向に見えていなければ、見えるようにスクロールする（行番号の列に隠れないようにする） */
   revealColumn(column: number): void {
-    const left = this.widths.slice(0, column).reduce((a, b) => a + b, 0);
-    const width = this.widths[column] ?? DEFAULT_COLUMN_WIDTH;
+    const columns = this.source.columns();
+    const position = columns.indexOf(column);
+    if (position < 0) {
+      return;
+    }
+    const left = columns.slice(0, position).reduce((sum, c) => sum + this.width(c), 0);
+    const width = this.width(column);
     const visibleLeft = this.element.scrollLeft;
     const visibleWidth = this.element.clientWidth - this.rowNumberWidth;
     if (left < visibleLeft) {
@@ -154,11 +207,15 @@ export class GridView {
     this.sizer.style.height =
       Math.max(view.contentHeight + headerHeight, this.element.clientHeight) + 'px';
     this.viewport.style.height = this.element.clientHeight + 'px';
-    const count = Math.min(view.visibleCount, input.totalRows - first);
+    const count = Math.max(0, Math.min(view.visibleCount, input.totalRows - first));
     this.renderRows(first, count);
     if (this.source.wrap() && count > 0 && this.atBottom(input)) {
       this.fitLastRow(first, count);
     }
+  }
+
+  private width(column: number): number {
+    return this.widths[column] ?? DEFAULT_COLUMN_WIDTH;
   }
 
   private viewportInput(scrollTop: number) {
@@ -194,28 +251,15 @@ export class GridView {
     }
   }
 
-  private renderHeader(): void {
-    const header = this.source.header();
-    this.headRow.replaceChildren(
-      el('th', { className: 'row-number', text: '#' }),
-      ...header.map((name, column) => {
-        const resizer = el('span', { className: 'resizer', attrs: { 'aria-hidden': 'true' } });
-        resizer.addEventListener('mousedown', (event) => this.startResize(event, column));
-        return el('th', { title: name }, el('span', { className: 'label', text: name }), resizer);
-      })
-    );
-    this.renderColumns();
-  }
-
   private renderColumns(): void {
-    const cols = [this.rowNumberWidth, ...this.widths].map((width) => {
+    const columns = this.source.columns();
+    const cols = [this.rowNumberWidth, ...columns.map((c) => this.width(c))].map((width) => {
       const col = el('col');
       col.style.width = width + 'px';
       return col;
     });
     this.colgroup.replaceChildren(...cols);
-    const total =
-      cols.length > 0 ? this.rowNumberWidth + this.widths.reduce((a, b) => a + b, 0) : 0;
+    const total = this.rowNumberWidth + columns.reduce((sum, c) => sum + this.width(c), 0);
     (this.colgroup.parentElement as HTMLElement).style.width = total + 'px';
   }
 
@@ -223,7 +267,7 @@ export class GridView {
     event.preventDefault();
     event.stopPropagation();
     const startX = event.clientX;
-    const startWidth = this.widths[column];
+    const startWidth = this.width(column);
     const move = (e: MouseEvent) => {
       this.widths[column] = Math.max(MIN_COLUMN_WIDTH, startWidth + e.clientX - startX);
       this.renderColumns();
@@ -233,13 +277,16 @@ export class GridView {
       window.removeEventListener('mouseup', up);
       this.schedule();
     };
+    // 列幅を変えた後の click で、ソートが切り替わらないようにする
+    const swallowClick = (e: MouseEvent) => e.stopPropagation();
+    window.addEventListener('click', swallowClick, { capture: true, once: true });
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   }
 
   private renderRows(first: number, count: number): void {
     this.firstIndex = first;
-    const header = this.source.header();
+    const columns = this.source.columns();
     const selected = this.source.selected();
     const wrap = this.source.wrap();
     const rows: HTMLTableRowElement[] = [];
@@ -247,39 +294,45 @@ export class GridView {
     let missingTo = 0;
     for (let index = first; index < first + count; index++) {
       const rowNumber = this.source.rowAt(index);
-      const data = this.source.getRow(rowNumber);
+      const data = rowNumber === undefined ? undefined : this.source.getRow(rowNumber);
       if (!data) {
-        missingFrom ??= rowNumber;
-        missingTo = rowNumber;
+        missingFrom ??= index;
+        missingTo = index;
       }
-      const columns = Math.max(header.length, data?.cells.length ?? 0);
-      const tr = el('tr', {
-        className: selected?.row === rowNumber ? 'selected-row' : '',
-      });
-      tr.append(el('td', { className: 'row-number', text: String(rowNumber) }));
-      for (let column = 0; column < columns; column++) {
-        tr.append(this.renderCell(data, rowNumber, column, selected, wrap));
+      const classes = [index % 2 === 1 ? 'odd' : ''];
+      if (rowNumber !== undefined && selected?.row === rowNumber) {
+        classes.push('selected-row');
+      }
+      const tr = el('tr', { className: classes.join(' ').trim() });
+      tr.append(
+        el('td', {
+          className: 'row-number',
+          text: rowNumber === undefined ? '' : String(rowNumber),
+        })
+      );
+      for (const column of columns) {
+        tr.append(this.renderCell(data, column, selected, wrap));
       }
       rows.push(tr);
     }
     this.body.replaceChildren(...rows);
     this.body.classList.toggle('wrap', wrap);
     if (missingFrom !== undefined) {
-      const from = Math.max(1, missingFrom - PREFETCH);
-      this.source.requestRows(from, missingTo - from + 1 + PREFETCH);
+      const from = Math.max(0, missingFrom - PREFETCH);
+      this.source.requestIndexes(from, missingTo - from + 1 + PREFETCH);
     }
   }
 
   private renderCell(
     data: RowData | undefined,
-    row: number,
     column: number,
     selected: CellPosition | undefined,
     wrap: boolean
   ): HTMLTableCellElement {
     if (!data) {
-      return el('td', { className: 'pending', text: column === 0 ? '…' : '' });
+      return el('td', { className: 'pending', text: '…' });
     }
+    const row = data.row;
     const value = data.cells[column] ?? '';
     const classes: string[] = [];
     if (selected?.row === row && selected.column === column) {
@@ -289,14 +342,8 @@ export class GridView {
     if (mark) {
       classes.push(mark);
     }
-    if (column >= this.source.header().length) {
-      classes.push('extra');
-    }
-    // 折り返さないときは、セルの中の改行を記号で見せて行の高さを保つ
-    const text = wrap ? value : value.replace(/\r?\n/g, '↵');
     const td = el('td', {
       className: classes.join(' '),
-      text,
       title: value.length > 0 ? value : undefined,
       attrs: {
         'data-row': String(row),
@@ -309,6 +356,14 @@ export class GridView {
         }),
       },
     });
+    // 前後の空白は詰めて印で示す。折り返さないときは、セルの中の改行を記号で見せて行の高さを保つ
+    const display = trimForDisplay(value);
+    appendTrimmed(
+      td,
+      display,
+      wrap ? display.text : display.text.replace(/\r?\n/g, '↵'),
+      this.whitespaceTitle
+    );
     return td;
   }
 

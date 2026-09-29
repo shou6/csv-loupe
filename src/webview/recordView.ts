@@ -1,7 +1,8 @@
 import { RowData } from '../core/protocol';
 import { Translate } from '../core/translate';
 import { recordPairs } from '../core/view/record';
-import { el } from './dom';
+import { trimForDisplay } from '../core/view/cellText';
+import { appendTrimmed, el } from './dom';
 
 /** 選んだ行を「列名と値」の縦の並びで見せるパネル */
 export class RecordView {
@@ -57,10 +58,10 @@ export class RecordView {
       { className: 'record-list' },
       ...recordPairs(header, row.cells, t).flatMap((pair) => {
         const selected = pair.column === selectedColumn ? 'selected' : '';
-        return [
-          el('dt', { className: selected, text: pair.name, title: pair.name }),
-          el('dd', { className: selected, text: pair.value }),
-        ];
+        const value = el('dd', { className: selected });
+        const display = trimForDisplay(pair.value);
+        appendTrimmed(value, display, display.text, t('The value has spaces at the start or end.'));
+        return [el('dt', { className: selected, text: pair.name, title: pair.name }), value];
       })
     );
     this.element.replaceChildren(el('div', { className: 'record-header' }, title, close), list);

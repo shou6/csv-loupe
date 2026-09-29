@@ -13,6 +13,8 @@ export interface FindCallbacks {
   /** 一致したセルへ移動する */
   jump(hit: FindHit): void;
   columnName(column: number): string;
+  /** 検索をリセットしたとき（強調表示を消すために表を描き直す） */
+  cleared(): void;
   translate(): Translate;
 }
 
@@ -30,6 +32,7 @@ export class FindPanel {
   private readonly list: HTMLElement;
   private readonly prevButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
+  private readonly clearButton: HTMLButtonElement;
   private caseSensitive = false;
   private wholeCell = false;
   private searchId = 0;
@@ -48,7 +51,10 @@ export class FindPanel {
       className: 'find-input',
       attrs: { type: 'text', spellcheck: 'false' },
       on: {
-        input: () => this.scheduleSearch(),
+        input: () => {
+          this.clearButton.disabled = false;
+          this.scheduleSearch();
+        },
         keydown: (event) => this.onKey(event as KeyboardEvent),
       },
     });
@@ -65,6 +71,11 @@ export class FindPanel {
     this.status = el('span', { className: 'find-status', attrs: { 'aria-live': 'polite' } });
     this.prevButton = el('button', { text: '↑', on: { click: () => this.move(-1) } });
     this.nextButton = el('button', { text: '↓', on: { click: () => this.move(1) } });
+    this.clearButton = el('button', {
+      className: 'toggle',
+      text: '×',
+      on: { click: () => this.clear() },
+    });
     this.bar = el(
       'div',
       { className: 'find-bar' },
@@ -73,6 +84,7 @@ export class FindPanel {
       this.wholeButton,
       this.prevButton,
       this.nextButton,
+      this.clearButton,
       this.status
     );
     this.list = el('div', { className: 'find-list', attrs: { role: 'listbox' } });
@@ -91,6 +103,20 @@ export class FindPanel {
     this.caseSensitive = true;
     this.wholeCell = true;
     this.run();
+  }
+
+  /** 検索のリセット。検索語、設定、強調表示、一覧を消し、実行中の検索を止める */
+  clear(): void {
+    clearTimeout(this.timer);
+    this.callbacks.cancel();
+    this.input.value = '';
+    this.caseSensitive = false;
+    this.wholeCell = false;
+    this.lastQuery = undefined;
+    this.searchId++;
+    this.clearResults();
+    this.render();
+    this.callbacks.cleared();
   }
 
   /** ファイルを読み直したとき。結果は古くなるので消す（検索語は残す） */
@@ -140,6 +166,8 @@ export class FindPanel {
     this.wholeButton.title = t('Match Whole Cell');
     this.prevButton.title = t('Previous Match');
     this.nextButton.title = t('Next Match');
+    this.clearButton.title = t('Clear Search (Esc)');
+    this.clearButton.disabled = this.input.value === '' && !this.lastQuery;
     for (const [button, on] of [
       [this.caseButton, this.caseSensitive],
       [this.wholeButton, this.wholeCell],
@@ -192,9 +220,8 @@ export class FindPanel {
         this.run();
       }
     } else if (event.key === 'Escape') {
-      this.callbacks.cancel();
-      this.done = true;
-      this.render();
+      event.preventDefault();
+      this.clear();
     }
   }
 

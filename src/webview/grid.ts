@@ -42,6 +42,8 @@ export interface GridSource {
   /** 検索の一致などの印 */
   mark(row: number, column: number): CellMark | undefined;
   sort(): SortState | undefined;
+  /** 並べ替え中の列 */
+  sorting(): number | undefined;
 }
 
 export interface GridEvents {
@@ -74,6 +76,7 @@ export class GridView {
   /** 空白の印の説明と、ソートの説明（翻訳済み） */
   whitespaceTitle = '';
   sortTitle = '';
+  sortingTitle = '';
 
   constructor(
     private readonly source: GridSource,
@@ -113,6 +116,7 @@ export class GridView {
   renderHeader(): void {
     const header = this.source.header();
     const sort = this.source.sort();
+    const sorting = this.source.sorting();
     this.headRow.replaceChildren(
       el('th', { className: 'row-number', text: '#' }),
       ...this.source.columns().map((column) => {
@@ -129,10 +133,12 @@ export class GridView {
             on: { click: () => this.events.onHeaderClick(column) },
           },
           el('span', { className: 'label', text: name }),
-          el('span', {
-            className: 'sort-mark',
-            text: sorted === 'asc' ? '▲' : sorted === 'desc' ? '▼' : '',
-          }),
+          sorting === column
+            ? el('span', { className: 'sort-mark', text: '…', title: this.sortingTitle })
+            : el('span', {
+                className: 'sort-mark',
+                text: sorted === 'asc' ? '▲' : sorted === 'desc' ? '▼' : '',
+              }),
           resizer
         );
         return th;

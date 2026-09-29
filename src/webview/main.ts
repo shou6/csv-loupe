@@ -47,6 +47,8 @@ interface State {
   hidden: Set<number>;
   /** 有効なソート。並べ替えが終わってから設定する */
   sort: (SortState & { sortId: number }) | undefined;
+  /** 並べ替え中の列。終わるまで見出しに印を出す */
+  sorting: number | undefined;
 }
 
 const state: State = {
@@ -62,6 +64,7 @@ const state: State = {
   columns: [],
   hidden: new Set(),
   sort: undefined,
+  sorting: undefined,
 };
 
 /** Row → 行のデータ */
@@ -223,6 +226,7 @@ const grid = new GridView(
     selected: () => state.selected,
     mark: (row, column) => findPanel.mark(row, column),
     sort: () => state.sort,
+    sorting: () => state.sorting,
   },
   {
     onSelect: (cell) => {
@@ -674,6 +678,7 @@ function onInit(message: InitMessage): void {
   t = createTranslator(message.l10n);
   grid.whitespaceTitle = t('The value has spaces at the start or end.');
   grid.sortTitle = t('Click to sort');
+  grid.sortingTitle = t('Sorting…');
   const columns = columnNames(message.header, message.hasHeader, message.columnCount, t);
   const sameColumns = JSON.stringify(state.columns) === JSON.stringify(columns);
   state.columns = columns;
@@ -689,6 +694,7 @@ function onInit(message: InitMessage): void {
   state.peekStart = 1;
   state.selected = undefined;
   state.sort = undefined;
+  state.sorting = undefined;
   notice = undefined;
   findPanel.reset();
   cache.clear();
@@ -719,9 +725,11 @@ function onSortState(message: Extract<HostMessage, { type: 'sortState' }>): void
   if (message.sortId !== sortId) {
     return;
   }
+  // 帯を出すと表の位置がずれるので、並べ替え中は見出しの印で示す
+  state.sorting = message.status === 'sorting' ? message.column : undefined;
+  grid.renderHeader();
   switch (message.status) {
     case 'sorting':
-      showNotice(t('Sorting…'));
       return;
     case 'counting':
       showNotice(t('Sorting is available after row counting finishes.'));

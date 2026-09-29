@@ -1,4 +1,9 @@
 {
-  "description": "A Visual Studio Code extension.",
-  "command.helloWorld": "Hello World"
+  "description": "A read-only CSV viewer for quickly inspecting CSV and TSV files, including large ones.",
+  "editor.displayName": "CSV Loupe",
+  "command.copyCell": "Copy Cell",
+  "command.copyRow": "Copy Row",
+  "command.findSameValue": "Find Same Value",
+  "command.openRecordView": "Open Record View",
+  "command.openSourceAtRow": "Open Source at Row"
 }

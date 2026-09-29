@@ -1,0 +1,651 @@
+/*
+ * CSV Loupe の配色。アクセント色（青緑）を持ち、背景はテーマのエディターの背景色にアクセントを
+ * 混ぜて作る。ダークとライトでアクセントを変え、ハイコントラストではテーマの色に戻す。
+ * body のクラス（vscode-dark など）は VS Code が付ける。
+ */
+body {
+  --loupe-accent: #2fb8a6;
+  --loupe-accent-strong: #52d6c4;
+  --loupe-on-accent: #06221e;
+  --loupe-bg: var(--vscode-editor-background);
+  --loupe-fg: var(--vscode-editor-foreground, var(--vscode-foreground));
+  --loupe-muted: var(--vscode-descriptionForeground);
+  --loupe-toolbar-bg: color-mix(in srgb, var(--loupe-bg) 90%, var(--loupe-accent));
+  --loupe-header-bg: color-mix(in srgb, var(--loupe-bg) 72%, var(--loupe-accent));
+  --loupe-header-fg: color-mix(in srgb, var(--loupe-fg) 85%, var(--loupe-accent-strong));
+  --loupe-row-number-bg: color-mix(in srgb, var(--loupe-bg) 93%, var(--loupe-accent));
+  --loupe-row-number-fg: color-mix(in srgb, var(--loupe-muted) 80%, var(--loupe-accent));
+  --loupe-row-alt: color-mix(in srgb, var(--loupe-bg) 95%, var(--loupe-fg));
+  --loupe-line: color-mix(in srgb, var(--loupe-bg) 88%, var(--loupe-fg));
+  --loupe-row-selected: color-mix(in srgb, var(--loupe-bg) 84%, var(--loupe-accent));
+  --loupe-cell-selected: color-mix(in srgb, var(--loupe-bg) 60%, var(--loupe-accent));
+  --loupe-match: color-mix(in srgb, var(--loupe-bg) 70%, #f0a732);
+  --loupe-match-current: color-mix(in srgb, var(--loupe-bg) 35%, #f0a732);
+  --loupe-marker: color-mix(in srgb, var(--loupe-muted) 55%, var(--loupe-accent));
+  --loupe-panel-bg: color-mix(in srgb, var(--loupe-bg) 94%, var(--loupe-accent));
+  --loupe-input-bg: var(--vscode-input-background);
+  --loupe-button-bg: color-mix(in srgb, var(--loupe-bg) 82%, var(--loupe-fg));
+  --loupe-button-hover: color-mix(in srgb, var(--loupe-bg) 74%, var(--loupe-fg));
+  --loupe-focus: var(--loupe-accent);
+}
+
+body.vscode-light {
+  --loupe-accent: #0f8f80;
+  --loupe-accent-strong: #0a7064;
+  --loupe-on-accent: #ffffff;
+  --loupe-header-bg: color-mix(in srgb, var(--loupe-bg) 80%, var(--loupe-accent));
+  --loupe-header-fg: color-mix(in srgb, var(--loupe-fg) 80%, var(--loupe-accent-strong));
+  --loupe-row-alt: color-mix(in srgb, var(--loupe-bg) 96%, var(--loupe-fg));
+  --loupe-button-bg: color-mix(in srgb, var(--loupe-bg) 90%, var(--loupe-fg));
+  --loupe-button-hover: color-mix(in srgb, var(--loupe-bg) 84%, var(--loupe-fg));
+}
+
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --loupe-accent: var(--vscode-focusBorder);
+  --loupe-accent-strong: var(--vscode-focusBorder);
+  --loupe-on-accent: var(--vscode-editor-background);
+  --loupe-toolbar-bg: var(--vscode-editor-background);
+  --loupe-header-bg: var(--vscode-editor-background);
+  --loupe-header-fg: var(--vscode-foreground);
+  --loupe-row-number-bg: var(--vscode-editor-background);
+  --loupe-row-alt: transparent;
+  --loupe-line: var(--vscode-contrastBorder);
+  --loupe-row-selected: transparent;
+  --loupe-cell-selected: transparent;
+  --loupe-match: transparent;
+  --loupe-match-current: transparent;
+  --loupe-panel-bg: var(--vscode-editor-background);
+  --loupe-button-bg: var(--vscode-button-secondaryBackground);
+  --loupe-button-hover: var(--vscode-button-secondaryHoverBackground);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--loupe-fg);
+  background: var(--loupe-bg);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.message {
+  padding: 12px;
+  color: var(--loupe-muted);
+}
+
+/* ツールバー */
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--loupe-toolbar-bg);
+  border-bottom: 2px solid var(--loupe-accent);
+}
+
+.info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: center;
+}
+
+.info .file-name {
+  color: var(--loupe-accent-strong);
+  font-size: 1.1em;
+  font-weight: 700;
+}
+
+.info .counts {
+  padding: 1px 8px;
+  color: var(--loupe-on-accent);
+  background: var(--loupe-accent);
+  border-radius: 10px;
+  font-size: 0.92em;
+  font-weight: 600;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+button {
+  padding: 3px 10px;
+  color: var(--loupe-fg);
+  background: var(--loupe-button-bg);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--loupe-button-hover);
+}
+
+button:focus-visible {
+  outline: 1px solid var(--loupe-focus);
+  outline-offset: 1px;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button.selected {
+  color: var(--loupe-on-accent);
+  background: var(--loupe-accent);
+}
+
+button.filtered {
+  border-color: var(--loupe-accent);
+}
+
+.segmented {
+  display: inline-flex;
+}
+
+.segmented button {
+  border-radius: 0;
+}
+
+.segmented button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.segmented button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+
+.picker {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--loupe-muted);
+}
+
+select,
+input[type='text'] {
+  padding: 3px 6px;
+  color: var(--vscode-input-foreground, var(--loupe-fg));
+  background: var(--loupe-input-bg);
+  border: 1px solid var(--vscode-input-border, var(--loupe-line));
+  border-radius: 4px;
+  font: inherit;
+}
+
+select:focus,
+input[type='text']:focus {
+  outline: 1px solid var(--loupe-focus);
+  outline-offset: -1px;
+}
+
+select.uncertain {
+  border-color: var(--vscode-inputValidation-warningBorder, #d9a300);
+}
+
+.find-row-bar {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.find-bar {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.find-input {
+  width: 280px;
+}
+
+button.toggle {
+  min-width: 30px;
+  padding: 3px 6px;
+}
+
+.find-status {
+  margin-left: 6px;
+  color: var(--loupe-muted);
+}
+
+.goto {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.goto-input {
+  width: 110px;
+}
+
+/* 知らせ */
+
+.banner {
+  padding: 5px 12px;
+  background: color-mix(in srgb, var(--loupe-bg) 80%, var(--loupe-accent));
+  border-bottom: 1px solid var(--loupe-accent);
+}
+
+.banner.error {
+  background: var(--vscode-inputValidation-errorBackground);
+  border-bottom-color: var(--vscode-inputValidation-errorBorder, transparent);
+}
+
+button.link {
+  padding: 0;
+  color: var(--vscode-textLink-foreground, var(--loupe-accent-strong));
+  background: transparent;
+  border: none;
+}
+
+button.link:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+
+button.icon {
+  padding: 0 6px;
+  color: var(--loupe-fg);
+  background: transparent;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* 列の表示・非表示のパネル */
+
+.columns-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 40%;
+  padding: 8px 12px;
+  background: var(--loupe-panel-bg);
+  border-bottom: 1px solid var(--loupe-line);
+}
+
+.columns-panel[hidden] {
+  display: none;
+}
+
+.columns-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.columns-filter {
+  width: 240px;
+}
+
+.columns-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 2px 12px;
+  overflow: auto;
+}
+
+.columns-item {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.columns-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.columns-item input {
+  accent-color: var(--loupe-accent);
+}
+
+/* 表 */
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.table-container {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  outline: none;
+}
+
+.grid-sizer {
+  width: max-content;
+  min-width: 100%;
+}
+
+/* 画面の高さの枠。スクロールしても上に留まり、見えている行だけを入れる */
+.grid-viewport {
+  position: sticky;
+  top: 0;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+
+table.grid {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.grid th,
+.grid td {
+  box-sizing: border-box;
+  height: 24px;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  line-height: 23px;
+  text-align: left;
+  border-right: 1px solid var(--loupe-line);
+  border-bottom: 1px solid var(--loupe-line);
+}
+
+.grid tbody.wrap td {
+  height: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.grid tbody tr.odd td {
+  background: var(--loupe-row-alt);
+}
+
+/* 見出し。背景色とアクセントの下線で本文と区別する */
+.grid th {
+  position: relative;
+  height: 30px;
+  color: var(--loupe-header-fg);
+  background: var(--loupe-header-bg);
+  border-bottom: 2px solid var(--loupe-accent);
+  font-family: var(--vscode-font-family);
+  font-weight: 700;
+  line-height: 28px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.grid th:hover {
+  background: color-mix(in srgb, var(--loupe-header-bg) 85%, var(--loupe-accent));
+}
+
+.grid th .label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 14px;
+}
+
+.grid th .sort-mark {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  color: var(--loupe-accent-strong);
+  font-size: 0.8em;
+}
+
+.grid th.sorted {
+  background: color-mix(in srgb, var(--loupe-header-bg) 75%, var(--loupe-accent));
+}
+
+.grid th .resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  z-index: 3;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.grid .row-number,
+.grid tbody tr.odd td.row-number {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  color: var(--loupe-row-number-fg);
+  background: var(--loupe-row-number-bg);
+  text-align: right;
+}
+
+.grid th.row-number {
+  z-index: 2;
+  color: var(--loupe-header-fg);
+  background: var(--loupe-header-bg);
+  cursor: default;
+}
+
+.grid td.pending {
+  color: var(--loupe-muted);
+}
+
+.grid tbody tr.selected-row td {
+  background: var(--loupe-row-selected);
+}
+
+.grid tbody tr.selected-row td.row-number {
+  color: var(--loupe-accent-strong);
+  background: var(--loupe-row-number-bg);
+  font-weight: 700;
+}
+
+.grid tbody tr td.match {
+  background: var(--loupe-match);
+}
+
+.grid tbody tr td.current-match {
+  background: var(--loupe-match-current);
+  outline: 1px solid #f0a732;
+  outline-offset: -1px;
+}
+
+.grid tbody tr td.selected-cell {
+  background: var(--loupe-cell-selected);
+  outline: 2px solid var(--loupe-accent);
+  outline-offset: -2px;
+}
+
+/* 値の前後の空白の印 */
+.ws {
+  margin: 0 1px;
+  color: var(--loupe-marker);
+  font-size: 0.85em;
+}
+
+/* Record View */
+
+.record-view {
+  display: flex;
+  flex-direction: column;
+  width: 38%;
+  min-width: 260px;
+  max-width: 640px;
+  overflow: hidden;
+  background: var(--loupe-panel-bg);
+  border-left: 2px solid var(--loupe-accent);
+}
+
+.record-view[hidden] {
+  display: none;
+}
+
+.record-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--loupe-header-bg);
+  border-bottom: 2px solid var(--loupe-accent);
+}
+
+.record-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  align-items: baseline;
+}
+
+.record-title .strong {
+  color: var(--loupe-accent-strong);
+  font-size: 1.05em;
+}
+
+.record-title span:not(.strong) {
+  color: var(--loupe-muted);
+}
+
+.strong {
+  font-weight: 700;
+}
+
+.record-list {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) minmax(0, 1fr);
+  align-content: start;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.record-list dt,
+.record-list dd {
+  margin: 0;
+  padding: 4px 12px;
+  border-bottom: 1px solid var(--loupe-line);
+}
+
+.record-list dt {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--loupe-header-fg);
+  background: var(--loupe-row-number-bg);
+  font-family: var(--vscode-font-family);
+  font-weight: 600;
+  text-align: left;
+}
+
+.record-list dd {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.record-list .selected {
+  background: var(--loupe-row-selected);
+}
+
+.record-list dt.selected {
+  color: var(--loupe-accent-strong);
+}
+
+/* 検索の結果の一覧 */
+
+.find-results {
+  max-height: 30%;
+  overflow: auto;
+  background: var(--loupe-panel-bg);
+  border-top: 2px solid var(--loupe-accent);
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size);
+}
+
+.find-results[hidden] {
+  display: none;
+}
+
+.find-item {
+  display: grid;
+  grid-template-columns: 90px minmax(80px, 220px) 1fr;
+  gap: 16px;
+  padding: 2px 12px;
+  cursor: pointer;
+}
+
+.find-item:hover {
+  background: var(--loupe-row-alt);
+}
+
+.find-item.current {
+  color: var(--loupe-on-accent);
+  background: var(--loupe-accent);
+}
+
+.find-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.find-row {
+  color: var(--loupe-row-number-fg);
+}
+
+.find-column {
+  color: var(--loupe-header-fg);
+  font-weight: 600;
+}
+
+.find-item.current .find-row,
+.find-item.current .find-column {
+  color: inherit;
+}
+
+/* 下端の状態表示 */
+
+.status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  color: var(--loupe-muted);
+  background: var(--loupe-toolbar-bg);
+  border-top: 1px solid var(--loupe-line);
+}
+
+.status-bar .strong {
+  color: var(--loupe-accent-strong);
+}

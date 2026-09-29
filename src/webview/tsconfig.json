@@ -1,0 +1,12 @@
+{
+  // Webview（ブラウザで動くコード）の型検査用。出力は esbuild が行う
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "noEmit": true,
+    "rootDir": ".."
+  },
+  "include": ["."],
+  "exclude": []
+}

@@ -124,6 +124,24 @@ suite('CSV Lens のエディタ', () => {
     assert.strictEqual(await vscode.env.clipboard.readText(), '1\t2');
   });
 
+  test('元のファイルを、CSV Lens と同じ文字コードの標準のテキストエディタで開き、指定した行へ移る', async () => {
+    // 表,ポ ↵ あ,"①↵x" ↵ z
+    const bytes = Uint8Array.from([
+      0x95, 0x5c, 0x2c, 0x83, 0x7c, 0x0a, 0x82, 0xa0, 0x2c, 0x22, 0x87, 0x40, 0x0a, 0x78, 0x22,
+      0x0a, 0x7a, 0x0a,
+    ]);
+    const uri = await open('source.csv', bytes);
+    await init(uri);
+    await testApi.send(uri, { type: 'openSource', line: 4 });
+    const editor = await waitFor(() => {
+      const active = vscode.window.activeTextEditor;
+      return active?.document.uri.fsPath === uri.fsPath ? active : undefined;
+    }, 'テキストエディタで開く');
+    assert.strictEqual(editor.selection.active.line, 3);
+    assert.strictEqual(editor.document.lineAt(0).text, '表,ポ');
+    assert.strictEqual(editor.document.encoding, 'shiftjis');
+  });
+
   test('Worker で CSV 全体を検索し、Row と列を返す', async () => {
     let text = 'id,name\n';
     for (let i = 1; i <= 5000; i++) {

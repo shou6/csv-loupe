@@ -10,6 +10,7 @@ import {
 } from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
+import { columnNames } from '../core/view/columns';
 import { parseRowInput, tailStart } from '../core/view/navigation';
 import { el } from './dom';
 import { CellPosition, GridView } from './grid';
@@ -37,6 +38,8 @@ interface State {
   error: string | undefined;
   /** 表示中に元のファイルが変わった */
   fileChanged: boolean;
+  /** 列名（ヘッダーなしなら「列 1」…） */
+  columns: string[];
 }
 
 const state: State = {
@@ -49,6 +52,7 @@ const state: State = {
   wrap: false,
   error: undefined,
   fileChanged: false,
+  columns: [],
 };
 
 const cache = new Map<number, RowData>();
@@ -84,10 +88,7 @@ function renderStatus(): void {
     statusBar.replaceChildren(el('span', { text: t('Select a cell to see its position.') }));
     return;
   }
-  const column =
-    selected.column < state.init.header.length
-      ? state.init.header[selected.column]
-      : t('(column {0})', String(selected.column + 1));
+  const column = columnName(selected.column);
   statusBar.replaceChildren(
     el('span', { className: 'strong', text: t('Row {0}', data.row.toLocaleString('en-US')) }),
     el('span', { text: t('Source Line {0}', data.line.toLocaleString('en-US')) }),
@@ -98,6 +99,10 @@ function renderStatus(): void {
       on: { click: () => post({ type: 'openSource', line: data.line }) },
     })
   );
+}
+
+function columnName(column: number): string {
+  return state.columns[column] ?? t('(column {0})', String(column + 1));
 }
 
 /** 行数を数え終える前は使えない操作の案内 */
@@ -142,7 +147,7 @@ const recordView = new RecordView(() => {
 function renderRecord(): void {
   const selected = state.selected;
   recordView.render(
-    state.init?.header ?? [],
+    state.columns,
     selected ? cache.get(selected.row) : undefined,
     selected?.column,
     t
@@ -169,7 +174,7 @@ function rowAt(index: number): number {
 
 const grid = new GridView(
   {
-    header: () => state.init?.header ?? [],
+    header: () => state.columns,
     displayCount,
     rowAt,
     getRow: (row) => cache.get(row),
@@ -192,10 +197,7 @@ const findPanel = new FindPanel({
   search: (searchId, query) => post({ type: 'find', searchId, query }),
   cancel: () => post({ type: 'cancelFind' }),
   jump: (hit) => jumpTo(hit.row, hit.column),
-  columnName: (column) =>
-    state.init && column < state.init.header.length
-      ? state.init.header[column]
-      : t('(column {0})', String(column + 1)),
+  columnName,
   translate: () => t,
 });
 
@@ -320,10 +322,11 @@ function renderToolbar(): void {
     el('span', { className: 'file-name', text: init.fileName }),
     el('span', {
       className: 'counts',
-      text: rowCountLabel(state.rowsCounted, state.countDone, init.header.length, t),
+      text: rowCountLabel(state.rowsCounted, state.countDone, state.columns.length, t),
     }),
     encodingSelect(init),
-    delimiterSelect(init)
+    delimiterSelect(init),
+    headerSelect(init)
   );
   const sizes = el(
     'div',
@@ -435,6 +438,32 @@ function delimiterSelect(init: InitMessage): HTMLElement {
   return el('label', { className: 'picker' }, el('span', { text: t('Delimiter') }), select);
 }
 
+/** ヘッダーの有無の表示と切り替え。判別に確信がなければ ? を付けて目立たせる */
+function headerSelect(init: InitMessage): HTMLElement {
+  const mark = init.headerConfident ? '' : '?';
+  const select = el(
+    'select',
+    {
+      className: init.headerConfident ? '' : 'uncertain',
+      attrs: { 'aria-label': t('Header row') },
+      on: { change: () => post({ type: 'setHeader', hasHeader: select.value === 'yes' }) },
+    },
+    el('option', {
+      text: t('Yes') + (init.hasHeader ? mark : ''),
+      attrs: { value: 'yes' },
+    }),
+    el('option', {
+      text: t('No') + (init.hasHeader ? '' : mark),
+      attrs: { value: 'no' },
+    })
+  );
+  select.value = init.hasHeader ? 'yes' : 'no';
+  select.title = init.headerConfident
+    ? t('Header row')
+    : t('Whether the first row is a header was guessed. Change it if it looks wrong.');
+  return el('label', { className: 'picker' }, el('span', { text: t('Header row') }), select);
+}
+
 function renderBanners(): void {
   const items: HTMLElement[] = [];
   if (state.error) {
@@ -465,7 +494,9 @@ function renderBanners(): void {
 
 function onInit(message: InitMessage): void {
   t = createTranslator(message.l10n);
-  const sameColumns = JSON.stringify(state.init?.header) === JSON.stringify(message.header);
+  const columns = columnNames(message.header, message.hasHeader, message.columnCount, t);
+  const sameColumns = JSON.stringify(state.columns) === JSON.stringify(columns);
+  state.columns = columns;
   state.init = message;
   state.rowsCounted = message.rowsCounted;
   state.countDone = message.countDone;

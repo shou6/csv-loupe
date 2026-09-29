@@ -32,7 +32,7 @@ export interface SearchOptions {
   firstDataRecord?: number;
 }
 
-/** CSV 全体（ヘッダーを除く）から、条件に一致するセルを探す */
+/** CSV 全体（ヘッダーがあれば除く）から、条件に一致するセルを探す */
 export async function searchRecords(
   source: ByteSource,
   format: CsvFormat,
@@ -43,6 +43,7 @@ export async function searchRecords(
   const decoder = createDecoder(format.encoding);
   const delimiter = delimiterChar(format.delimiter);
   const reportEvery = options.reportEveryChunks ?? 8;
+  const firstDataRecord = options.firstDataRecord ?? 1;
   let hits: FindHit[] = [];
   let stored = 0;
   let total = 0;
@@ -55,10 +56,11 @@ export async function searchRecords(
     format,
     { offset: format.dataStart, line: 1 },
     (raw) => {
-      const row = record++;
-      if (row === 0) {
+      const current = record++;
+      if (current < firstDataRecord) {
         return;
       }
+      const row = current + 1 - firstDataRecord;
       const text = recordText(raw.bytes, decoder);
       if (!matcher.mightMatch(text)) {
         return;

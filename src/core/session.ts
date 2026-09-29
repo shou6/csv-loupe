@@ -1,4 +1,5 @@
 import { delimiterForFileName } from './csv/delimiter';
+import { detectHeader } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
 import { SparseIndex } from './index/sparseIndex';
@@ -13,7 +14,7 @@ import {
   InitMessage,
   WebviewMessage,
 } from './protocol';
-import { readInitial, readRows } from './read/rowReader';
+import { readHead, readRows, shapeInitial } from './read/rowReader';
 import { ByteSource } from './source/byteSource';
 
 /** 開いた直後に送る行数 */
@@ -45,6 +46,8 @@ interface Loaded {
   runner: JobRunner;
   format: CsvFormat;
   index: SparseIndex;
+  /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
+  firstDataRecord: number;
   initialRows: number;
   rowsCounted: number;
   countDone: boolean;
@@ -63,6 +66,7 @@ export class CsvSession {
   /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
+  private headerChoice: boolean | undefined;
 
   constructor(private readonly env: SessionEnvironment) {}
 
@@ -88,7 +92,8 @@ export class CsvSession {
               loaded.index,
               message.from,
               Math.min(message.count, MAX_ROWS_PER_REQUEST),
-              loaded.rowsCounted
+              loaded.rowsCounted,
+              loaded.firstDataRecord
             );
             if (loaded === this.loaded) {
               this.env.post({
@@ -115,6 +120,10 @@ export class CsvSession {
           break;
         case 'setDelimiter':
           this.delimiterChoice = message.delimiter;
+          await this.load();
+          break;
+        case 'setHeader':
+          this.headerChoice = message.hasHeader;
           await this.load();
           break;
         case 'reload':
@@ -166,7 +175,13 @@ export class CsvSession {
     this.searchJob?.cancel();
     const fileSize = loaded.source.size;
     this.searchJob = loaded.runner.run(
-      { kind: 'search', format: loaded.format, query, limit: FIND_LIMIT },
+      {
+        kind: 'search',
+        format: loaded.format,
+        query,
+        limit: FIND_LIMIT,
+        firstDataRecord: loaded.firstDataRecord,
+      },
       (message) => {
         if (loaded !== this.loaded) {
           return;
@@ -214,7 +229,13 @@ export class CsvSession {
         delimiter: this.delimiterChoice ?? delimiterForFileName(this.env.fileName),
         dataStart: bomLength(detection.encoding, head),
       };
-      const initial = await readInitial(source, format, INITIAL_ROWS);
+      const headRecords = await readHead(source, format, INITIAL_ROWS + 1);
+      const header =
+        this.headerChoice !== undefined
+          ? { hasHeader: this.headerChoice, confident: true }
+          : detectHeader(headRecords.records.map((record) => record.cells));
+      const initial = shapeInitial(headRecords, header.hasHeader, INITIAL_ROWS);
+      const firstDataRecord = header.hasHeader ? 1 : 0;
       if (generation !== this.generation) {
         await source.close();
         return;
@@ -226,6 +247,7 @@ export class CsvSession {
         runner: opened.runner,
         format,
         index,
+        firstDataRecord,
         initialRows: initial.rows.length,
         rowsCounted: initial.rows.length,
         countDone: initial.complete,
@@ -236,10 +258,10 @@ export class CsvSession {
           encoding: detection.encoding,
           encodingConfident: detection.confident,
           delimiter: format.delimiter,
-          hasHeader: true,
-          headerConfident: true,
+          hasHeader: header.hasHeader,
+          headerConfident: header.confident,
           header: initial.header,
-          columnCount: initial.header.length,
+          columnCount: Math.max(0, ...headRecords.records.map((record) => record.cells.length)),
           rows: initial.rows,
           rowsCounted: initial.rows.length,
           countDone: initial.complete,
@@ -250,8 +272,7 @@ export class CsvSession {
       this.env.post(loaded.init);
       if (initial.complete) {
         // 先頭を読んだ時点で最後まで読めた。行数は確定しているので数えない
-        const records = initial.header.length > 0 ? initial.rows.length + 1 : 0;
-        index.extend([], [], records);
+        index.extend([], [], headRecords.records.length);
         index.markComplete();
       } else {
         this.indexJob = opened.runner.run({ kind: 'index', format }, (message) =>
@@ -279,7 +300,7 @@ export class CsvSession {
     }
     const progress = message.progress;
     loaded.index.extend(progress.offsets, progress.lines, progress.recordCount);
-    const counted = Math.max(progress.recordCount - 1, 0);
+    const counted = Math.max(progress.recordCount - loaded.firstDataRecord, 0);
     if (progress.done) {
       loaded.index.markComplete();
       loaded.rowsCounted = counted;

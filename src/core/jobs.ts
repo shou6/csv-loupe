@@ -7,7 +7,14 @@ import { ByteSource } from './source/byteSource';
 /** 時間のかかる処理。本番では Worker で、テストと file 以外のスキームではその場で動かす */
 export type Job =
   | { kind: 'index'; format: CsvFormat }
-  | { kind: 'search'; format: CsvFormat; query: FindQuery; limit: number };
+  | {
+      kind: 'search';
+      format: CsvFormat;
+      query: FindQuery;
+      limit: number;
+      /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
+      firstDataRecord: number;
+    };
 
 export type JobMessage =
   | { kind: 'indexProgress'; progress: IndexProgress }
@@ -54,6 +61,7 @@ export async function runJob(
     case 'search':
       await searchRecords(source, job.format, job.query, {
         limit: job.limit,
+        firstDataRecord: job.firstDataRecord,
         chunkSize: options.chunkSize,
         reportEveryChunks: options.reportEveryChunks,
         shouldStop,

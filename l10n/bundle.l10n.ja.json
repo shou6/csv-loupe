@@ -43,5 +43,10 @@
   "Delimiter": "区切り文字",
   "The encoding was guessed. Choose another one if the text looks wrong.": "文字コードは推定です。文字化けしている場合は、別のものを選んでください。",
   "The file has changed on disk.": "ファイルが変更されました。",
-  "Reload": "再読み込み"
+  "Reload": "再読み込み",
+  "Column {0}": "列 {0}",
+  "Header row": "ヘッダー",
+  "Yes": "あり",
+  "No": "なし",
+  "Whether the first row is a header was guessed. Change it if it looks wrong.": "ヘッダーの有無は推定です。違っている場合は切り替えてください。"
 }

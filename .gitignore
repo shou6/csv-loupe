@@ -22,8 +22,7 @@ Thumbs.db
 *.log
 *.stackdump
 
-# 手元の開発環境だけで使うもの（AI 向けの指示と設定、作業メモ、公開手順などのメモ）
-CLAUDE.md
-.claude/
+# 手元の開発環境だけで使うもの
+CLAUDE.local.md
 .automation/
 docs/

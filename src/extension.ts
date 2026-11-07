@@ -14,7 +14,9 @@ const CONTEXT_COMMANDS: ContextCommand[] = [
 /** エントリポイント。登録だけを行い、ロジックは各モジュールに置く。テストの実行時だけテスト用の API を返す */
 export function activate(context: vscode.ExtensionContext): CsvLoupeTestApi | undefined {
   const testing = context.extensionMode === vscode.ExtensionMode.Test;
-  const provider = new CsvLoupeEditorProvider(context.extensionUri, { recordMessages: testing });
+  const provider = new CsvLoupeEditorProvider(context.extensionUri, context.globalState, {
+    recordMessages: testing,
+  });
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       webviewOptions: { retainContextWhenHidden: true },

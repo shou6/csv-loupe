@@ -16,6 +16,7 @@ import {
   SortDirection,
   SortStatus,
   WebviewMessage,
+  ViewPreferences,
 } from './protocol';
 import { readHead, readRows, shapeInitial } from './read/rowReader';
 import { ByteSource } from './source/byteSource';
@@ -42,6 +43,9 @@ export interface SessionEnvironment {
   copy(text: string): Promise<void>;
   /** 標準のテキストエディタで元のファイルを開き、line 行目へ移動する */
   openSource(line: number, encoding: EncodingId): Promise<void>;
+  /** 保存してある表示の好み（全ファイル共通） */
+  preferences(): ViewPreferences;
+  savePreferences(preferences: Partial<ViewPreferences>): Promise<void>;
 }
 
 /** 読み込んだファイルの状態。読み直すたびに作り直す */
@@ -192,6 +196,9 @@ export class CsvSession {
           break;
         case 'copy':
           await this.env.copy(message.text);
+          break;
+        case 'savePreferences':
+          await this.env.savePreferences(message.preferences);
           break;
         case 'openSource':
           if (loaded) {
@@ -427,6 +434,7 @@ export class CsvSession {
           rows: initial.rows,
           rowsCounted: initial.rows.length,
           countDone: initial.complete,
+          preferences: this.env.preferences(),
           l10n: this.env.l10n,
         },
       };

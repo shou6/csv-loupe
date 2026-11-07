@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { InProcessJobRunner, JobRunner } from '../core/jobs';
+import { readPreferences } from '../core/preferences';
 import { ContextCommand, EncodingId, HostMessage, WebviewMessage } from '../core/protocol';
 import { CsvSession, SessionEnvironment } from '../core/session';
 import { ByteSource } from '../core/source/byteSource';
@@ -12,6 +13,8 @@ import { CsvLoupeTestApi } from './testApi';
 import { WorkerJobRunner } from './workerJobRunner';
 
 export const VIEW_TYPE = 'csvLoupe.editor';
+/** 表示の好みを保存する globalState のキー */
+const PREFERENCES_KEY = 'csvLoupe.preferences';
 
 /** CSV を読み取り専用で表示するカスタムエディタ。TextDocument を経由しないので、VS Code の大容量の確認が出ない */
 export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvider {
@@ -25,6 +28,7 @@ export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvid
 
   constructor(
     private readonly extensionUri: vscode.Uri,
+    private readonly globalState: vscode.Memento,
     options: { recordMessages?: boolean } = {}
   ) {
     this.messageLog = options.recordMessages ? new Map() : undefined;
@@ -115,6 +119,11 @@ export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvid
       },
       copy: async (text) => {
         await vscode.env.clipboard.writeText(text);
+      },
+      preferences: () => readPreferences(this.globalState.get(PREFERENCES_KEY)),
+      savePreferences: async (preferences) => {
+        const current = readPreferences(this.globalState.get(PREFERENCES_KEY));
+        await this.globalState.update(PREFERENCES_KEY, { ...current, ...preferences });
       },
       openSource: async (line: number, encoding: EncodingId) => {
         const document = await vscode.workspace.openTextDocument(uri, { encoding });

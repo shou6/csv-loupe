@@ -12,7 +12,7 @@ import {
 import { createTranslator, Translate } from '../core/translate';
 import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
-import { CellIndex, moveCell, moveKeyFor } from '../core/view/keyboard';
+import { CellIndex, moveCell, moveKeyFor, stepRow } from '../core/view/keyboard';
 import { parseRowInput, tailStart } from '../core/view/navigation';
 import { el } from './dom';
 import { FindPanel } from './findPanel';
@@ -194,10 +194,20 @@ function tail(): void {
   }
 }
 
-const recordView = new RecordView(() => {
-  recordView.hide();
-  renderToolbar();
-});
+const recordView = new RecordView(
+  () => {
+    recordView.hide();
+    renderToolbar();
+  },
+  (direction) => {
+    const selected = state.selected;
+    const index = stepRow(selectedIndex()?.index, direction, displayCount());
+    if (selected && index !== undefined) {
+      // 選んだセルの列を保つ（非表示の列でも変えない）
+      selectIndex(index, selected.column);
+    }
+  }
+);
 
 function renderRecord(): void {
   const selected = state.selected;
@@ -205,6 +215,10 @@ function renderRecord(): void {
     state.columns,
     selected ? cache.get(selected.row) : undefined,
     selected?.column,
+    {
+      previous: stepRow(selectedIndex()?.index, 'previous', displayCount()) !== undefined,
+      next: stepRow(selectedIndex()?.index, 'next', displayCount()) !== undefined,
+    },
     t
   );
 }

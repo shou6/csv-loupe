@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review: ドラフトを Ready for review にしたときにも検査とマージを行う
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # 同じブランチへの新しい push が来たら、古い実行を止める
 concurrency:
@@ -65,3 +67,89 @@ jobs:
       - name: Integration tests
         if: runner.os != 'Linux'
         run: npm test
+
+  # 全ジョブが通った PR をスカッシュマージし、Issue を閉じてブランチを消す。
+  # GITHUB_TOKEN で行ったマージは新しい workflow を起動せず、Closes #番号 による Issue のクローズと
+  # 「Automatically delete head branches」も働かないため、後片付けまでこのジョブで行う
+  merge:
+    needs: [check, integration]
+    # ドラフトと、他リポジトリからの PR はマージしない
+    if: >-
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - id: meta
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        uses: dependabot/fetch-metadata@v3
+
+      # Dependabot の PR は、devDependencies と GitHub Actions のメジャーでない更新だけをマージする。
+      # それ以外は dependabot-triage.yml が deps:review を付け、影響調査のあと手でマージする
+      - name: マージの対象かを決める
+        id: decide
+        env:
+          IS_DEPENDABOT: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+          AUTO_DEP: >-
+            ${{ steps.meta.outputs.update-type != '' &&
+                steps.meta.outputs.update-type != 'version-update:semver-major' &&
+                (steps.meta.outputs.dependency-type == 'direct:development' ||
+                 steps.meta.outputs.package-ecosystem == 'github_actions') }}
+        run: |
+          if [ "$IS_DEPENDABOT" = "true" ] && [ "$AUTO_DEP" != "true" ]; then
+            echo "自動マージの対象外の Dependabot の PR です。"
+            echo "merge=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "merge=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: スカッシュマージする
+        if: steps.decide.outputs.merge == 'true'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # 検査中にドラフトへ戻された場合はマージしない
+          if [ "$(gh pr view "$PR_NUMBER" --json isDraft --jq .isDraft)" = "true" ]; then
+            echo "ドラフトのためマージしません。"
+            exit 0
+          fi
+          # 検査した commit から変わっていればマージしない（新しい push の実行に任せる）
+          gh pr merge "$PR_NUMBER" --squash --match-head-commit "$HEAD_SHA"
+
+      - name: PR が閉じる対象の Issue を閉じる
+        if: steps.decide.outputs.merge == 'true'
+        run: |
+          if [ "$(gh pr view "$PR_NUMBER" --json state --jq .state)" != "MERGED" ]; then
+            echo "マージされていないため Issue は閉じません。"
+            exit 0
+          fi
+          # このリポジトリの Issue だけを対象にする
+          issues=$(gh pr view "$PR_NUMBER" --json closingIssuesReferences \
+            --jq '.closingIssuesReferences[] | select(.url | startswith("https://github.com/" + env.GH_REPO + "/issues/")) | .number')
+          for issue in $issues; do
+            if [ "$(gh issue view "$issue" --json state --jq .state)" = "OPEN" ]; then
+              gh issue close "$issue" --reason completed --comment "#$PR_NUMBER のマージで完了しました（GitHub Actions による自動マージ）。"
+            fi
+          done
+
+      - name: 作業ブランチを削除する
+        if: steps.decide.outputs.merge == 'true'
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          if [ "$(gh pr view "$PR_NUMBER" --json state --jq .state)" != "MERGED" ]; then
+            echo "マージされていないためブランチは削除しません。"
+            exit 0
+          fi
+          # 既に削除済みなどで失敗しても、マージ自体は成功しているのでジョブは失敗させない
+          gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$HEAD_REF" \
+            || echo "::warning::ブランチ $HEAD_REF を削除できませんでした。"

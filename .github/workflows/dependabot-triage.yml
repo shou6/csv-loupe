@@ -1,0 +1,43 @@
+# Dependabot の PR のうち、自動マージしないものに印を付ける。
+# - devDependencies と GitHub Actions のメジャーでない更新: 何もしない。
+#   ci.yml の merge ジョブが、CI の成功後にマージする（判定の条件はそちらと揃える）
+# - それ以外（dependencies、メジャー更新）: deps:review ラベルとコメントを付ける。
+#   dependencies は VSIX に入り、利用者の環境での動きと Marketplace への更新に関わるため、
+#   dependabot-review スキルで影響を調べてから取り込む
+name: Dependabot triage
+
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  triage:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v3
+
+      - name: 対象外なら deps:review ラベルを付ける
+        if: >-
+          !(steps.meta.outputs.update-type != '' &&
+            steps.meta.outputs.update-type != 'version-update:semver-major' &&
+            (steps.meta.outputs.dependency-type == 'direct:development' ||
+             steps.meta.outputs.package-ecosystem == 'github_actions'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEP_NAMES: ${{ steps.meta.outputs.dependency-names }}
+          DEP_TYPE: ${{ steps.meta.outputs.dependency-type }}
+          UPDATE_TYPE: ${{ steps.meta.outputs.update-type }}
+        run: |
+          gh pr edit "$PR_NUMBER" --add-label deps:review
+          gh pr comment "$PR_NUMBER" --body "自動マージの対象外です（${DEP_NAMES}: ${DEP_TYPE}, ${UPDATE_TYPE:-update-type 不明}）。dependabot-review スキルで影響を調べてから取り込みます。"

@@ -4,6 +4,69 @@
 
 VS Code 拡張機能。TypeScript + esbuild。Marketplace 公開を目指す。
 
+開発の規則とコミットメッセージの規約は次のファイルにある。
+
+@.claude/rules/development.md
+@.claude/rules/commit-message.md
+
+## 作業の流れ（必須）
+
+実装と検証は手元（Windows）で行う。GitHub の Issue から始め、PR を CI の成功で自動マージする。
+
+1. **Issue から始める。** 対応する Issue がない作業は、先に Issue を作る（`.github/ISSUE_TEMPLATE/` に従う）。バグも直す前に Issue を作る
+2. ブランチを切る：`<種別>/<Issue番号>-<短い説明>`（種別：`feat` / `fix` / `docs` / `chore`）
+3. Issue の範囲だけを TDD で実装する。仕様で分からない点は推測せず、Issue にコメントして `needs:user` ラベルを付けて止まる
+4. `npm run compile`、`npm run test:unit`、`npm test` を通す
+5. コミットして push し、PR を作る。本文は `.github/pull_request_template.md` に従い、`Closes #<Issue番号>` と検証の結果を書く
+6. ドラフトにするかは下記「PR の種類」で決める。通常の PR は、CI が通ると自動でマージされる
+7. CI の結果を見届ける。失敗したら原因を直して同じブランチに push する。テストを消す、スキップするなどで通さない。原因が PR の範囲外にあるときや判断が要るときは、PR にコメントして止まる
+8. 作業中に見つけた範囲外の問題は直さず、新しい Issue を作って PR の本文に番号を書く
+
+main への直接の push はしない。マージは CI に任せ、Claude は `gh pr merge` を実行しない（dependabot-review スキルで、ユーザーが取り込みを了承したときを除く）。
+
+### PR の種類
+
+main の ruleset は CI の 4 つのジョブ（`Lint, unit tests and package` と 3 つの OS の `Integration tests`）を必須にしている。`.github/workflows/ci.yml` の merge ジョブは、ドラフトでない PR で全部のジョブが通るとスカッシュマージし、`Closes #` の Issue を閉じてブランチを消す。
+
+**ドラフトで作る PR**（ユーザーの確認が要るもの。ドラフトの間はマージされない）
+
+- 見た目や操作に関わる変更（Webview の表、スタイル、操作）。Claude は画面を見られないため、ユーザーが `npm run try` か F5 で確かめる
+- 方針の判断が要る変更（依存の追加、CLAUDE.md・`.claude/`・CI・ruleset の変更など）。ユーザーが直接指示したものは除く
+- リリース（バージョンを上げる PR）
+
+ドラフトにしたときは、PR 本文の「手元で確認してほしい点」に手順と見るポイントを書く。ユーザーが確かめて Ready for review にすると、CI が動き、通ればマージされる。
+
+**通常の PR で作るもの**：ロジック、テスト、ドキュメントの変更など、`npm run compile`、`npm run test:unit`、`npm test` で確かめきれるもの。
+
+### Dependabot
+
+Dependabot の PR は、ci.yml の merge ジョブと `.github/workflows/dependabot-triage.yml` が振り分ける。
+
+- devDependencies と GitHub Actions のメジャーでない更新は、CI が通れば ci.yml の merge ジョブがマージする
+- それ以外（dependencies とメジャー更新）は `deps:review` ラベルが付く。dependabot-review スキルで影響を調べてから取り込む。dependencies は VSIX に入るため、取り込んだら Marketplace への更新が要るかをユーザーに伝える
+
+### 公開リポジトリでの注意
+
+このリポジトリは公開している。Issue、PR、コミットメッセージは誰でも読める。
+
+- `docs/`（git の管理外）の要件定義や実装計画の中身を、Issue や PR に書き写さない。必要なら「要件定義 4 節の決定に沿う」のように場所だけを示す
+- 秘密情報、個人のパス、手元の環境の詳細を書かない
+
+### GitHub の操作
+
+`gh` を使う。Issue は `gh issue create --template`、PR は `gh pr create --body-file` で作る。
+
+## スキル
+
+`.claude/skills/` にある。
+
+| スキル | 使うとき |
+| --- | --- |
+| dependabot-review | `deps:review` の付いた Dependabot の PR の影響を調べる |
+| vscode-marketplace-publish | リリースと Marketplace への公開 |
+| extension-icon-create | アイコンを作り直す |
+| yomiyasu | README.ja.md など、日本語の文章を推敲する |
+
 ## コマンド
 
 ```bash
@@ -48,7 +111,7 @@ resources/              アイコン
 
 ## 開発ルール
 
-- TDD で進める。先にテストを書いて失敗を確認し、その後に実装する（グローバル設定を参照）
+- TDD で進める。先にテストを書いて失敗を確認し、その後に実装する（`.claude/rules/development.md`）
 - `vscode` モジュールに依存しない層は純粋関数にし、単体テストできる形を保つ。翻訳関数などは引数で受け取る（`src/hello.ts` を参照）
 - 外部プロセスやネットワークはインタフェースで抽象化し、テストではフェイクに差し替える
 - `strict` を維持し、`any` を使わない

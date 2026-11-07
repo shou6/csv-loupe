@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { InProcessJobRunner } from '../../core/jobs';
-import { EncodingId, HostMessage, InitMessage } from '../../core/protocol';
+import { EncodingId, HostMessage, InitMessage, ViewPreferences } from '../../core/protocol';
 import { CsvSession, SessionEnvironment } from '../../core/session';
 import { ByteSource } from '../../core/source/byteSource';
 import { MemorySource } from '../../core/source/memorySource';
@@ -20,6 +20,8 @@ class FakeEnvironment implements SessionEnvironment {
   readonly copied: string[] = [];
   readonly opened: { line: number; encoding: EncodingId }[] = [];
   opens = 0;
+  stored: ViewPreferences = { hideEmptyValues: false };
+  readonly saved: Partial<ViewPreferences>[] = [];
   l10n: Record<string, string> | undefined = { Find: '検索' };
 
   constructor(
@@ -48,6 +50,16 @@ class FakeEnvironment implements SessionEnvironment {
 
   openSource(line: number, encoding: EncodingId): Promise<void> {
     this.opened.push({ line, encoding });
+    return Promise.resolve();
+  }
+
+  preferences(): ViewPreferences {
+    return this.stored;
+  }
+
+  savePreferences(preferences: Partial<ViewPreferences>): Promise<void> {
+    this.saved.push(preferences);
+    this.stored = { ...this.stored, ...preferences };
     return Promise.resolve();
   }
 
@@ -114,6 +126,21 @@ suite('CsvSession', () => {
       }
     );
     await session.dispose();
+  });
+
+  test('表示の好み（全ファイル共通）を init で送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    env.stored = { hideEmptyValues: true };
+    await new CsvSession(env).start();
+    assert.deepStrictEqual(env.lastInit().preferences, { hideEmptyValues: true });
+  });
+
+  test('Webview から表示の好みを受け取ると保存する', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'savePreferences', preferences: { hideEmptyValues: true } });
+    assert.deepStrictEqual(env.saved, [{ hideEmptyValues: true }]);
   });
 
   test('先頭の行は最大 100 行。残りは索引を作りながら数え、途中経過を送る', async () => {

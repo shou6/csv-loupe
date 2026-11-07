@@ -686,6 +686,10 @@ function onInit(message: InitMessage): void {
     state.hidden.clear();
     columnFilter = '';
   }
+  if (!state.init) {
+    // 最初に開いたときだけ設定の表示行数を使う。読み直しでは今の表示行数を保つ
+    state.peekSize = message.peekSize;
+  }
   state.init = message;
   state.rowsCounted = message.rowsCounted;
   state.countDone = message.countDone;

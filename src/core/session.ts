@@ -1,4 +1,5 @@
 import { delimiterForFileName } from './csv/delimiter';
+import { DEFAULT_PEEK_SIZE } from './view/peekSize';
 import { detectHeader } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
@@ -36,6 +37,8 @@ export interface SessionEnvironment {
   readonly fileName: string;
   /** 翻訳の表（vscode.l10n.bundle） */
   readonly l10n: Record<string, string> | undefined;
+  /** 開いたときの表示行数。0 は All。無ければ既定の 10 */
+  readonly peekSize?: number;
   /** ファイルを開き、そのファイルでジョブを動かすものと一緒に返す */
   open(): Promise<{ source: ByteSource; runner: JobRunner }>;
   post(message: HostMessage): void;
@@ -427,6 +430,7 @@ export class CsvSession {
           rows: initial.rows,
           rowsCounted: initial.rows.length,
           countDone: initial.complete,
+          peekSize: this.env.peekSize ?? DEFAULT_PEEK_SIZE,
           l10n: this.env.l10n,
         },
       };

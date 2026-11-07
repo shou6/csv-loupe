@@ -12,6 +12,7 @@ import {
 import { createTranslator, Translate } from '../core/translate';
 import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
+import { CellIndex, moveCell, moveKeyFor } from '../core/view/keyboard';
 import { parseRowInput, tailStart } from '../core/view/navigation';
 import { clampRecordWidth } from '../core/view/recordWidth';
 import { el } from './dom';
@@ -294,6 +295,7 @@ const grid = new GridView(
   },
   {
     onSelect: (cell) => {
+      pendingSelect = undefined;
       state.selected = cell;
       grid.refresh();
       renderRecord();
@@ -347,6 +349,77 @@ function revealPosition(position: number, column: number): void {
   grid.revealColumn(column);
   renderRecord();
   renderStatus();
+}
+
+/** キーで動かした先の行がまだ分からない（ソート中で読み込み前）とき、届いたら選ぶ */
+let pendingSelect: { index: number; column: number } | undefined;
+
+/** 選んだセルの、表示中の範囲での位置。範囲の外か、ソート中で位置が分からなければ undefined */
+function selectedIndex(): CellIndex | undefined {
+  const selected = state.selected;
+  if (!selected) {
+    return undefined;
+  }
+  let index: number | undefined;
+  if (state.sort) {
+    for (const [position, row] of sortedRows) {
+      if (row === selected.row) {
+        index = position - basePosition();
+        break;
+      }
+    }
+  } else {
+    index = selected.row - basePosition();
+  }
+  if (index === undefined || index < 0 || index >= displayCount()) {
+    return undefined;
+  }
+  return { index, columnIndex: shownColumns().indexOf(selected.column) };
+}
+
+/** 表の index 番目の行の column を選び、見えるようにスクロールする */
+function selectIndex(index: number, column: number): void {
+  const row = rowAt(index);
+  pendingSelect = row === undefined ? { index, column } : undefined;
+  if (row !== undefined) {
+    state.selected = { row, column };
+  }
+  grid.revealIndex(index);
+  grid.revealColumn(column);
+  renderRecord();
+  renderStatus();
+}
+
+/** 表にフォーカスがあるときのキー操作。選んだセルを動かし、Enter でレコード表示を開く */
+function onGridKey(event: KeyboardEvent): void {
+  if (event.key === 'Enter') {
+    if (state.selected && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+      event.preventDefault();
+      openRecordView();
+    }
+    return;
+  }
+  const key = moveKeyFor(event);
+  if (!key) {
+    return;
+  }
+  event.preventDefault();
+  const columns = shownColumns();
+  const result = moveCell(selectedIndex(), key, {
+    rowCount: displayCount(),
+    columnCount: columns.length,
+    pageRows: grid.pageRows(),
+    topIndex: grid.topIndex(),
+    countDone: state.countDone,
+  });
+  if (!result) {
+    return;
+  }
+  if ('error' in result) {
+    countingNotice();
+    return;
+  }
+  selectIndex(result.index, columns[result.columnIndex]);
 }
 
 /** 表の index の範囲の行を要求する（ソート中は表示の位置で、そうでなければ Row で） */
@@ -765,6 +838,7 @@ function onInit(message: InitMessage): void {
   state.fileChanged = false;
   state.peekStart = 1;
   state.selected = undefined;
+  pendingSelect = undefined;
   state.sort = undefined;
   state.sorting = undefined;
   notice = undefined;
@@ -859,6 +933,9 @@ function onMessage(message: HostMessage): void {
       pruneCache();
       const next = queued;
       queued = undefined;
+      if (pendingSelect && rowAt(pendingSelect.index) !== undefined) {
+        selectIndex(pendingSelect.index, pendingSelect.column);
+      }
       grid.refresh();
       renderRecord();
       renderStatus();
@@ -911,6 +988,8 @@ window.addEventListener('keydown', (event) => {
     findPanel.focus();
   }
 });
+
+grid.element.addEventListener('keydown', (event) => onGridKey(event));
 
 grid.element.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && state.selected) {

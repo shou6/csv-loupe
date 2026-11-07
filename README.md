@@ -55,7 +55,17 @@ Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
 
 - `Ctrl+F` (`Cmd+F`) moves to the Find box. `Enter` and `Shift+Enter` move to the next and previous match.
 - `Ctrl+C` (`Cmd+C`) copies the selected cell.
-- Double-click a cell to open **Record View** for its row.
+- Double-click a cell, or press `Enter`, to open **Record View** for its row.
+- When the table has focus, move the selected cell with the keyboard. Moves stay within the rows shown, in the sorted order while sorted.
+
+| Key | Moves to |
+| --- | --- |
+| `↑` / `↓` | The row above or below |
+| `←` / `→` | The column on the left or right (hidden columns are skipped) |
+| `PageUp` / `PageDown` | One screen up or down |
+| `Home` / `End` | The first or last column of the row |
+| `Ctrl+Home` / `Ctrl+End` | The first or last row (`Ctrl+End` is available after row counting finishes) |
+
 - To edit the file as text, run **View: Reopen Editor With...** and choose **Text Editor**.
 
 ## Settings

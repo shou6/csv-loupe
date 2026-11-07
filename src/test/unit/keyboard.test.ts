@@ -1,5 +1,5 @@
 import * as assert from 'assert';
-import { MoveContext, moveCell, moveKeyFor } from '../../core/view/keyboard';
+import { MoveContext, moveCell, moveKeyFor, stepRow } from '../../core/view/keyboard';
 
 function key(
   name: string,
@@ -112,5 +112,19 @@ suite('moveCell', () => {
   test('選んだ列が範囲の外（非表示にした列など）なら、範囲に収めてから動く', () => {
     assert.deepStrictEqual(moveCell(at(10, -1), 'down', context), at(11, 0));
     assert.deepStrictEqual(moveCell(at(10, 9), 'left', context), at(10, 3));
+  });
+});
+
+suite('stepRow', () => {
+  test('前後の行の index。範囲の端では undefined', () => {
+    assert.strictEqual(stepRow(5, 'previous', 10), 4);
+    assert.strictEqual(stepRow(5, 'next', 10), 6);
+    assert.strictEqual(stepRow(0, 'previous', 10), undefined);
+    assert.strictEqual(stepRow(9, 'next', 10), undefined);
+  });
+
+  test('選んだ行の位置が分からなければ undefined', () => {
+    assert.strictEqual(stepRow(undefined, 'next', 10), undefined);
+    assert.strictEqual(stepRow(undefined, 'previous', 10), undefined);
   });
 });

@@ -12,7 +12,7 @@ import {
 import { createTranslator, Translate } from '../core/translate';
 import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
-import { CellIndex, moveCell, moveKeyFor } from '../core/view/keyboard';
+import { CellIndex, moveCell, moveKeyFor, stepRow } from '../core/view/keyboard';
 import { parseRowInput, tailStart } from '../core/view/navigation';
 import { clampRecordWidth } from '../core/view/recordWidth';
 import { el } from './dom';
@@ -203,6 +203,14 @@ const recordView = new RecordView(
     recordView.hide();
     renderToolbar();
   },
+  (direction) => {
+    const selected = state.selected;
+    const index = stepRow(selectedIndex()?.index, direction, displayCount());
+    if (selected && index !== undefined) {
+      // 選んだセルの列を保つ（非表示の列でも変えない）
+      selectIndex(index, selected.column);
+    }
+  },
   () => {
     state.hideEmptyValues = !state.hideEmptyValues;
     post({ type: 'savePreferences', preferences: { hideEmptyValues: state.hideEmptyValues } });
@@ -216,6 +224,10 @@ function renderRecord(): void {
     state.columns,
     selected ? cache.get(selected.row) : undefined,
     selected?.column,
+    {
+      previous: stepRow(selectedIndex()?.index, 'previous', displayCount()) !== undefined,
+      next: stepRow(selectedIndex()?.index, 'next', displayCount()) !== undefined,
+    },
     state.hideEmptyValues,
     t
   );

@@ -10,6 +10,7 @@ export class RecordView {
 
   constructor(
     private readonly onClose: () => void,
+    private readonly onStep: (direction: 'previous' | 'next') => void,
     private readonly onToggleHideEmpty: () => void
   ) {
     this.element = el('aside', { className: 'record-view', attrs: { hidden: '' } });
@@ -31,6 +32,7 @@ export class RecordView {
     header: string[],
     row: RowData | undefined,
     selectedColumn: number | undefined,
+    canStep: { previous: boolean; next: boolean },
     hideEmpty: boolean,
     t: Translate
   ): void {
@@ -51,10 +53,14 @@ export class RecordView {
       attrs: { 'aria-pressed': String(hideEmpty) },
       on: { click: () => this.onToggleHideEmpty() },
     });
-    const actions = el('div', { className: 'record-actions' }, hideEmptyButton, close);
     if (!row) {
       this.element.replaceChildren(
-        el('div', { className: 'record-header' }, el('span', { text: t('Record View') }), actions),
+        el(
+          'div',
+          { className: 'record-header' },
+          el('span', { text: t('Record View') }),
+          el('div', { className: 'record-actions' }, hideEmptyButton, close)
+        ),
         el('div', { className: 'message', text: t('Select a cell to see its row.') })
       );
       return;
@@ -64,6 +70,25 @@ export class RecordView {
       { className: 'record-title' },
       el('span', { className: 'strong', text: t('Row {0}', row.row.toLocaleString('en-US')) }),
       el('span', { text: t('Source Line {0}', row.line.toLocaleString('en-US')) })
+    );
+    const step = (direction: 'previous' | 'next', text: string, label: string) => {
+      const button = el('button', {
+        className: 'icon',
+        text,
+        title: label,
+        attrs: { 'aria-label': label },
+        on: { click: () => this.onStep(direction) },
+      });
+      button.disabled = !canStep[direction];
+      return button;
+    };
+    const actions = el(
+      'div',
+      { className: 'record-actions' },
+      step('previous', '↑', t('Previous Row')),
+      step('next', '↓', t('Next Row')),
+      hideEmptyButton,
+      close
     );
     const pairs = recordPairs(header, row.cells, t);
     const list = el(

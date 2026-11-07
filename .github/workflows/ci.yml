@@ -68,7 +68,8 @@ jobs:
         if: runner.os != 'Linux'
         run: npm test
 
-  # 全ジョブが通った PR をスカッシュマージし、Issue を閉じてブランチを消す。
+  # 全ジョブが通った PR をマージコミットでマージし、Issue を閉じてブランチを消す。
+  # スカッシュしないのは、マージした PR のブランチから切った PR の commit を main に残すため
   # GITHUB_TOKEN で行ったマージは新しい workflow を起動せず、Closes #番号 による Issue のクローズと
   # 「Automatically delete head branches」も働かないため、後片付けまでこのジョブで行う
   merge:
@@ -112,7 +113,7 @@ jobs:
             echo "merge=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: スカッシュマージする
+      - name: マージする
         if: steps.decide.outputs.merge == 'true'
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
@@ -123,7 +124,7 @@ jobs:
             exit 0
           fi
           # 検査した commit から変わっていればマージしない（新しい push の実行に任せる）
-          gh pr merge "$PR_NUMBER" --squash --match-head-commit "$HEAD_SHA"
+          gh pr merge "$PR_NUMBER" --merge --match-head-commit "$HEAD_SHA"
 
       - name: PR が閉じる対象の Issue を閉じる
         if: steps.decide.outputs.merge == 'true'
@@ -145,11 +146,21 @@ jobs:
         if: steps.decide.outputs.merge == 'true'
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           if [ "$(gh pr view "$PR_NUMBER" --json state --jq .state)" != "MERGED" ]; then
             echo "マージされていないためブランチは削除しません。"
             exit 0
           fi
+          # API でブランチを消すと、そのブランチを base にした PR は付け替えられずに閉じられる。
+          # 先にマージ先へ付け替える。付け替えられなかった PR があれば、ブランチは消さない
+          stacked=$(gh pr list --base "$HEAD_REF" --state open --json number --jq '.[].number')
+          for pr in $stacked; do
+            if ! gh pr edit "$pr" --base "$BASE_REF"; then
+              echo "::warning::#$pr の base を $BASE_REF に付け替えられなかったため、ブランチ $HEAD_REF は残します。"
+              exit 0
+            fi
+          done
           # 既に削除済みなどで失敗しても、マージ自体は成功しているのでジョブは失敗させない
           gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$HEAD_REF" \
             || echo "::warning::ブランチ $HEAD_REF を削除できませんでした。"

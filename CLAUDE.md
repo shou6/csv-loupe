@@ -26,7 +26,7 @@ main への直接の push はしない。マージは CI に任せ、Claude は 
 
 ### PR の種類
 
-main の ruleset は CI の 4 つのジョブ（`Lint, unit tests and package` と 3 つの OS の `Integration tests`）を必須にしている。`.github/workflows/ci.yml` の merge ジョブは、ドラフトでない PR で全部のジョブが通るとスカッシュマージし、`Closes #` の Issue を閉じてブランチを消す。
+main の ruleset は CI の 4 つのジョブ（`Lint, unit tests and package` と 3 つの OS の `Integration tests`）を必須にしている。`.github/workflows/ci.yml` の merge ジョブは、ドラフトでない PR で全部のジョブが通るとマージコミットでマージする（スカッシュはしない）。`Closes #` の Issue を閉じ、そのブランチを base にした PR を main へ付け替えてから、ブランチを消す。
 
 **ドラフトで作る PR**（ユーザーの確認が要るもの。ドラフトの間はマージされない）
 

@@ -3,6 +3,21 @@
 This file lists all notable changes to this extension.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0]
+
+### Added
+
+- Setting `csvLoupe.initialRowCount` to choose the number of rows to show when you open a file (`1` / `10` / `100` / `all`).
+- Keyboard navigation in the table: arrow keys, Page Up / Page Down, Home / End, and Ctrl+Home / Ctrl+End move the selected cell. Enter opens Record View.
+- Double-click a column border to fit the column width to its content.
+- Record View: buttons to move to the previous and next row.
+- Record View: Hide Empty toggle to hide columns with empty values. CSV Loupe remembers the choice.
+- Record View: drag the border between the table and Record View to change its width. CSV Loupe remembers the width.
+
+### Changed
+
+- The accent color is now purple instead of teal.
+
 ## [0.1.0]
 
 Initial release.

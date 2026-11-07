@@ -517,6 +517,13 @@ table.grid {
   border-bottom: 2px solid var(--loupe-accent);
 }
 
+.record-actions {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+}
+
 .record-title {
   display: flex;
   flex-wrap: wrap;

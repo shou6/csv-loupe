@@ -38,6 +38,8 @@ interface State {
   peekStart: number;
   selected: CellPosition | undefined;
   wrap: boolean;
+  /** レコード表示で、値が空文字の列を隠す */
+  hideEmptyValues: boolean;
   error: string | undefined;
   /** 表示中に元のファイルが変わった */
   fileChanged: boolean;
@@ -59,6 +61,7 @@ const state: State = {
   peekStart: 1,
   selected: undefined,
   wrap: false,
+  hideEmptyValues: false,
   error: undefined,
   fileChanged: false,
   columns: [],
@@ -193,10 +196,17 @@ function tail(): void {
   }
 }
 
-const recordView = new RecordView(() => {
-  recordView.hide();
-  renderToolbar();
-});
+const recordView = new RecordView(
+  () => {
+    recordView.hide();
+    renderToolbar();
+  },
+  () => {
+    state.hideEmptyValues = !state.hideEmptyValues;
+    post({ type: 'savePreferences', preferences: { hideEmptyValues: state.hideEmptyValues } });
+    renderRecord();
+  }
+);
 
 function renderRecord(): void {
   const selected = state.selected;
@@ -204,6 +214,7 @@ function renderRecord(): void {
     state.columns,
     selected ? cache.get(selected.row) : undefined,
     selected?.column,
+    state.hideEmptyValues,
     t
   );
 }
@@ -687,6 +698,8 @@ function onInit(message: InitMessage): void {
     columnFilter = '';
   }
   if (!state.init) {
+    // 最初に開いたときだけ保存してある好みを使う。読み直しでは今の状態を保つ
+    state.hideEmptyValues = message.preferences.hideEmptyValues;
     // 最初に開いたときだけ設定の表示行数を使う。読み直しでは今の表示行数を保つ
     state.peekSize = message.peekSize;
   }

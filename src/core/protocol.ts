@@ -37,6 +37,12 @@ export type SortDirection = 'asc' | 'desc';
 /** ソートの状態。counting は行数を数え終えていない、tooLarge は行数が上限を超えている */
 export type SortStatus = 'sorting' | 'done' | 'cleared' | 'counting' | 'tooLarge';
 
+/** 表示の好み。全ファイルで共通にし、次に開いたときも保つ */
+export interface ViewPreferences {
+  /** レコード表示で、値が空文字の列を隠す */
+  hideEmptyValues: boolean;
+}
+
 /** 右クリックメニューのコマンド */
 export type ContextCommand =
   'copyCell' | 'copyRow' | 'findSameValue' | 'openRecordView' | 'openSourceAtRow';
@@ -62,7 +68,9 @@ export type WebviewMessage =
   | { type: 'setHeader'; hasHeader: boolean }
   | { type: 'reload' }
   | { type: 'copy'; text: string }
-  | { type: 'openSource'; line: number };
+  | { type: 'openSource'; line: number }
+  /** 変えた表示の好みを保存する */
+  | { type: 'savePreferences'; preferences: Partial<ViewPreferences> };
 
 /** 開いた（読み直した）時に送る、ファイルの情報と先頭の行 */
 export interface InitMessage {
@@ -88,6 +96,8 @@ export interface InitMessage {
   rowsCounted: number;
   /** 行数を数え終えたか */
   countDone: boolean;
+  /** 保存してある表示の好み。読み直しでは Webview は使わない */
+  preferences: ViewPreferences;
   /** 開いたときの表示行数（設定から）。0 は All。読み直しでは Webview は使わない */
   peekSize: number;
   /** 翻訳の表（vscode.l10n.bundle）。英語のときは無い */

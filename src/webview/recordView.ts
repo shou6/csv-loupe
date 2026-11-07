@@ -1,6 +1,6 @@
 import { RowData } from '../core/protocol';
 import { Translate } from '../core/translate';
-import { recordPairs } from '../core/view/record';
+import { recordPairs, withoutEmptyValues } from '../core/view/record';
 import { trimForDisplay } from '../core/view/cellText';
 import { appendTrimmed, el } from './dom';
 
@@ -10,7 +10,8 @@ export class RecordView {
 
   constructor(
     private readonly onClose: () => void,
-    private readonly onStep: (direction: 'previous' | 'next') => void
+    private readonly onStep: (direction: 'previous' | 'next') => void,
+    private readonly onToggleHideEmpty: () => void
   ) {
     this.element = el('aside', { className: 'record-view', attrs: { hidden: '' } });
   }
@@ -32,6 +33,7 @@ export class RecordView {
     row: RowData | undefined,
     selectedColumn: number | undefined,
     canStep: { previous: boolean; next: boolean },
+    hideEmpty: boolean,
     t: Translate
   ): void {
     if (!this.open) {
@@ -44,9 +46,21 @@ export class RecordView {
       attrs: { 'aria-label': t('Close') },
       on: { click: () => this.onClose() },
     });
+    const hideEmptyButton = el('button', {
+      className: hideEmpty ? 'selected' : '',
+      text: t('Hide Empty'),
+      title: t('Hide columns whose value is empty'),
+      attrs: { 'aria-pressed': String(hideEmpty) },
+      on: { click: () => this.onToggleHideEmpty() },
+    });
     if (!row) {
       this.element.replaceChildren(
-        el('div', { className: 'record-header' }, el('span', { text: t('Record View') }), close),
+        el(
+          'div',
+          { className: 'record-header' },
+          el('span', { text: t('Record View') }),
+          el('div', { className: 'record-actions' }, hideEmptyButton, close)
+        ),
         el('div', { className: 'message', text: t('Select a cell to see its row.') })
       );
       return;
@@ -73,12 +87,14 @@ export class RecordView {
       { className: 'record-actions' },
       step('previous', '↑', t('Previous Row')),
       step('next', '↓', t('Next Row')),
+      hideEmptyButton,
       close
     );
+    const pairs = recordPairs(header, row.cells, t);
     const list = el(
       'dl',
       { className: 'record-list' },
-      ...recordPairs(header, row.cells, t).flatMap((pair) => {
+      ...(hideEmpty ? withoutEmptyValues(pairs) : pairs).flatMap((pair) => {
         const selected = pair.column === selectedColumn ? 'selected' : '';
         const value = el('dd', { className: selected });
         const display = trimForDisplay(pair.value);

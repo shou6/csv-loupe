@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { createTranslator } from '../../core/translate';
-import { recordPairs } from '../../core/view/record';
+import { recordPairs, withoutEmptyValues } from '../../core/view/record';
 
 const t = createTranslator(undefined);
 
@@ -31,5 +31,23 @@ suite('recordPairs', () => {
   test('余った列の名前は翻訳する', () => {
     const ja = createTranslator({ '(column {0})': '（{0} 列目）' });
     assert.strictEqual(recordPairs([], ['x'], ja)[0].name, '（1 列目）');
+  });
+});
+
+suite('withoutEmptyValues', () => {
+  test('値が空文字の組を除く。空白だけの値は残す', () => {
+    const pairs = recordPairs(['a', 'b', 'c', 'd'], ['1', '', ' ', '	'], t);
+    assert.deepStrictEqual(
+      withoutEmptyValues(pairs).map((pair) => pair.column),
+      [0, 2, 3]
+    );
+  });
+
+  test('足りない列（空として扱う）も除く', () => {
+    const pairs = recordPairs(['a', 'b'], ['1'], t);
+    assert.deepStrictEqual(
+      withoutEmptyValues(pairs).map((pair) => pair.name),
+      ['a']
+    );
   });
 });

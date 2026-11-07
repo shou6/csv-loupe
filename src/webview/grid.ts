@@ -1,5 +1,6 @@
 import { RowData } from '../core/protocol';
 import { trimForDisplay } from '../core/view/cellText';
+import { fitColumnWidth, MIN_COLUMN_WIDTH } from '../core/view/columnWidth';
 import { computeViewport, scrollTopForRow } from '../core/view/viewport';
 import { appendTrimmed, el } from './dom';
 
@@ -8,7 +9,6 @@ export const ROW_HEIGHT = 24;
 /** スクロールする要素の高さの上限。ブラウザの上限（約 3,300 万 px）より十分小さくする */
 const MAX_CONTENT_HEIGHT = 8_000_000;
 const DEFAULT_COLUMN_WIDTH = 160;
-const MIN_COLUMN_WIDTH = 40;
 /** 見えている範囲の前後に、先読みする行数 */
 const PREFETCH = 100;
 
@@ -123,6 +123,11 @@ export class GridView {
         const name = header[column] ?? '';
         const resizer = el('span', { className: 'resizer', attrs: { 'aria-hidden': 'true' } });
         resizer.addEventListener('mousedown', (event) => this.startResize(event, column));
+        resizer.addEventListener('dblclick', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          this.fitColumn(column, resizer.parentElement);
+        });
         const sorted = sort?.column === column ? sort.direction : undefined;
         const th = el(
           'th',
@@ -279,6 +284,43 @@ export class GridView {
     this.colgroup.replaceChildren(...cols);
     const total = this.rowNumberWidth + columns.reduce((sum, c) => sum + this.width(c), 0);
     (this.colgroup.parentElement as HTMLElement).style.width = total + 'px';
+  }
+
+  /**
+   * 列幅を、見出しの文字と画面に描いている行の値に合わせる。全行は調べない。
+   * 値は折り返さずに 1 行で測り、改行を含む値は最も長い行に合わせる。
+   */
+  private fitColumn(column: number, th: Element | null): void {
+    const measure = el('span', { className: 'grid-measure' });
+    document.body.append(measure);
+    /** 要素の中身を 1 行で並べたときの幅 */
+    const textWidth = (source: Element): number => {
+      measure.style.font = getComputedStyle(source).font;
+      measure.replaceChildren(...[...source.childNodes].map((node) => node.cloneNode(true)));
+      return measure.getBoundingClientRect().width;
+    };
+    /** セルの左右の余白と右の罫線 */
+    const chrome = (cell: Element): number => {
+      const style = getComputedStyle(cell);
+      return (
+        parseFloat(style.paddingLeft) +
+        parseFloat(style.paddingRight) +
+        parseFloat(style.borderRightWidth)
+      );
+    };
+    const widths: number[] = [];
+    const label = th?.querySelector('.label');
+    if (th && label) {
+      // 見出しの文字の右は、ソートの印のぶん空けてある
+      widths.push(textWidth(label) + parseFloat(getComputedStyle(label).paddingRight) + chrome(th));
+    }
+    for (const td of this.body.querySelectorAll(`td[data-column="${column}"]`)) {
+      widths.push(textWidth(td) + chrome(td));
+    }
+    measure.remove();
+    this.widths[column] = fitColumnWidth(widths);
+    this.renderColumns();
+    this.schedule();
   }
 
   private startResize(event: MouseEvent, column: number): void {

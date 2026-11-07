@@ -14,6 +14,7 @@ import { columnNames, matchColumns, visibleColumns } from '../core/view/columns'
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { CellIndex, moveCell, moveKeyFor, stepRow } from '../core/view/keyboard';
 import { parseRowInput, tailStart } from '../core/view/navigation';
+import { clampRecordWidth } from '../core/view/recordWidth';
 import { el } from './dom';
 import { FindPanel } from './findPanel';
 import { CellPosition, GridView, SortState } from './grid';
@@ -39,6 +40,8 @@ interface State {
   peekStart: number;
   selected: CellPosition | undefined;
   wrap: boolean;
+  /** レコード表示で、値が空文字の列を隠す */
+  hideEmptyValues: boolean;
   error: string | undefined;
   /** 表示中に元のファイルが変わった */
   fileChanged: boolean;
@@ -60,6 +63,7 @@ const state: State = {
   peekStart: 1,
   selected: undefined,
   wrap: false,
+  hideEmptyValues: false,
   error: undefined,
   fileChanged: false,
   columns: [],
@@ -206,6 +210,11 @@ const recordView = new RecordView(
       // 選んだセルの列を保つ（非表示の列でも変えない）
       selectIndex(index, selected.column);
     }
+  },
+  () => {
+    state.hideEmptyValues = !state.hideEmptyValues;
+    post({ type: 'savePreferences', preferences: { hideEmptyValues: state.hideEmptyValues } });
+    renderRecord();
   }
 );
 
@@ -219,15 +228,68 @@ function renderRecord(): void {
       previous: stepRow(selectedIndex()?.index, 'previous', displayCount()) !== undefined,
       next: stepRow(selectedIndex()?.index, 'next', displayCount()) !== undefined,
     },
+    state.hideEmptyValues,
     t
   );
 }
 
 function openRecordView(): void {
   recordView.show();
+  applyRecordWidth();
   renderToolbar();
   renderRecord();
 }
+
+/** ドラッグで変えたレコード表示の幅（px）。null は CSS の既定の幅 */
+let recordWidth: number | null = null;
+const recordSplitter = el('div', {
+  className: 'record-splitter',
+  attrs: { 'aria-hidden': 'true' },
+});
+const mainArea = el('div', { className: 'main' });
+
+/** レコード表示の幅を、今の画面の広さに収めて当てる。保存した幅は変えない */
+function applyRecordWidth(): void {
+  const style = recordView.element.style;
+  if (recordWidth === null) {
+    style.removeProperty('width');
+    style.removeProperty('min-width');
+    style.removeProperty('max-width');
+    style.removeProperty('flex');
+    return;
+  }
+  style.width = clampRecordWidth(recordWidth, mainArea.clientWidth) + 'px';
+  style.minWidth = '0';
+  style.maxWidth = 'none';
+  style.flex = 'none';
+}
+
+recordSplitter.addEventListener('mousedown', (event) => {
+  if (event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  const startX = event.clientX;
+  const startWidth = recordView.element.getBoundingClientRect().width;
+  document.body.classList.add('resizing-record');
+  const move = (e: MouseEvent) => {
+    // 境界を左へ動かすとレコード表示が広がる
+    recordWidth = clampRecordWidth(startWidth + startX - e.clientX, mainArea.clientWidth);
+    applyRecordWidth();
+  };
+  const up = () => {
+    window.removeEventListener('mousemove', move);
+    window.removeEventListener('mouseup', up);
+    document.body.classList.remove('resizing-record');
+    if (recordWidth !== null) {
+      post({ type: 'savePreferences', preferences: { recordViewWidth: recordWidth } });
+    }
+  };
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', up);
+});
+
+window.addEventListener('resize', () => applyRecordWidth());
 
 const grid = new GridView(
   {
@@ -773,6 +835,14 @@ function onInit(message: InitMessage): void {
     state.hidden.clear();
     columnFilter = '';
   }
+  if (!state.init) {
+    // 最初に開いたときだけ保存してある好みを使う。読み直しでは今の状態を保つ
+    state.hideEmptyValues = message.preferences.hideEmptyValues;
+    // 最初に開いたときだけ設定の表示行数を使う。読み直しでは今の表示行数を保つ
+    state.peekSize = message.peekSize;
+    recordWidth = message.preferences.recordViewWidth;
+    applyRecordWidth();
+  }
   state.init = message;
   state.rowsCounted = message.rowsCounted;
   state.countDone = message.countDone;
@@ -943,14 +1013,8 @@ grid.element.addEventListener('keydown', (event) => {
   }
 });
 
-app.replaceChildren(
-  toolbar,
-  columnsPanel,
-  banners,
-  el('div', { className: 'main' }, grid.element, recordView.element),
-  findPanel.results,
-  statusBar
-);
+mainArea.append(grid.element, recordSplitter, recordView.element);
+app.replaceChildren(toolbar, columnsPanel, banners, mainArea, findPanel.results, statusBar);
 renderStatus();
 onHostMessage(onMessage);
 renderBanners();

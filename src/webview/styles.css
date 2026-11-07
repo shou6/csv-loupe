@@ -1,12 +1,12 @@
 /*
- * CSV Loupe の配色。アクセント色（青緑）を持ち、背景はテーマのエディターの背景色にアクセントを
+ * CSV Loupe の配色。アクセント色（紫）を持ち、背景はテーマのエディターの背景色にアクセントを
  * 混ぜて作る。ダークとライトでアクセントを変え、ハイコントラストではテーマの色に戻す。
  * body のクラス（vscode-dark など）は VS Code が付ける。
  */
 body {
-  --loupe-accent: #2fb8a6;
-  --loupe-accent-strong: #52d6c4;
-  --loupe-on-accent: #06221e;
+  --loupe-accent: #a78bfa;
+  --loupe-accent-strong: #c4b5fd;
+  --loupe-on-accent: #1e1037;
   --loupe-bg: var(--vscode-editor-background);
   --loupe-fg: var(--vscode-editor-foreground, var(--vscode-foreground));
   --loupe-muted: var(--vscode-descriptionForeground);
@@ -30,8 +30,8 @@ body {
 }
 
 body.vscode-light {
-  --loupe-accent: #0f8f80;
-  --loupe-accent-strong: #0a7064;
+  --loupe-accent: #6d4fd8;
+  --loupe-accent-strong: #5338b5;
   --loupe-on-accent: #ffffff;
   --loupe-header-bg: color-mix(in srgb, var(--loupe-bg) 80%, var(--loupe-accent));
   --loupe-header-fg: color-mix(in srgb, var(--loupe-fg) 80%, var(--loupe-accent-strong));
@@ -426,6 +426,15 @@ table.grid {
   background: color-mix(in srgb, var(--loupe-header-bg) 75%, var(--loupe-accent));
 }
 
+/* 列幅を内容に合わせるときに、値の幅を測る要素 */
+.grid-measure {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  white-space: pre;
+  visibility: hidden;
+}
+
 .grid th .resizer {
   position: absolute;
   top: 0;
@@ -505,6 +514,26 @@ table.grid {
 
 .record-view[hidden] {
   display: none;
+}
+
+/* 表とレコード表示の境界。ドラッグでレコード表示の幅を変える。幅を取らないよう左右に食い込ませる */
+.record-splitter {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  width: 6px;
+  margin-right: -4px;
+  margin-left: -2px;
+  cursor: col-resize;
+}
+
+.main:has(> .record-view[hidden]) > .record-splitter {
+  display: none;
+}
+
+body.resizing-record {
+  cursor: col-resize;
+  user-select: none;
 }
 
 .record-header {

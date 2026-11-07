@@ -18,6 +18,8 @@
   "Record View": "レコード表示",
   "Previous Row": "前の行",
   "Next Row": "次の行",
+  "Hide Empty": "空の値を隠す",
+  "Hide columns whose value is empty": "値が空の列を隠す",
   "Select a cell to see its row.": "セルを選ぶと、その行を表示します。",
   "Row {0}": "行 {0}",
   "Source Line {0}": "元のファイルの {0} 行目",

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import { InProcessJobRunner } from '../../core/jobs';
-import { EncodingId, HostMessage, InitMessage } from '../../core/protocol';
+import { EncodingId, HostMessage, InitMessage, ViewPreferences } from '../../core/protocol';
 import { CsvSession, SessionEnvironment } from '../../core/session';
 import { ByteSource } from '../../core/source/byteSource';
 import { MemorySource } from '../../core/source/memorySource';
@@ -20,6 +20,9 @@ class FakeEnvironment implements SessionEnvironment {
   readonly copied: string[] = [];
   readonly opened: { line: number; encoding: EncodingId }[] = [];
   opens = 0;
+  stored: ViewPreferences = { hideEmptyValues: false, recordViewWidth: null };
+  readonly saved: Partial<ViewPreferences>[] = [];
+  peekSize: number | undefined = undefined;
   l10n: Record<string, string> | undefined = { Find: '検索' };
 
   constructor(
@@ -48,6 +51,16 @@ class FakeEnvironment implements SessionEnvironment {
 
   openSource(line: number, encoding: EncodingId): Promise<void> {
     this.opened.push({ line, encoding });
+    return Promise.resolve();
+  }
+
+  preferences(): ViewPreferences {
+    return this.stored;
+  }
+
+  savePreferences(preferences: Partial<ViewPreferences>): Promise<void> {
+    this.saved.push(preferences);
+    this.stored = { ...this.stored, ...preferences };
     return Promise.resolve();
   }
 
@@ -114,6 +127,35 @@ suite('CsvSession', () => {
       }
     );
     await session.dispose();
+  });
+
+  test('表示の好み（全ファイル共通）を init で送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    env.stored = { hideEmptyValues: true, recordViewWidth: 420 };
+    await new CsvSession(env).start();
+    assert.deepStrictEqual(env.lastInit().preferences, {
+      hideEmptyValues: true,
+      recordViewWidth: 420,
+    });
+  });
+
+  test('Webview から表示の好みを受け取ると保存する', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'savePreferences', preferences: { hideEmptyValues: true } });
+    assert.deepStrictEqual(env.saved, [{ hideEmptyValues: true }]);
+  });
+
+  test('開いたときの表示行数を、環境の設定から init で送る。未設定なら 10', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    await new CsvSession(env).start();
+    assert.strictEqual(env.lastInit().peekSize, 10);
+
+    const allEnv = new FakeEnvironment(utf8(csv(3)));
+    allEnv.peekSize = 0;
+    await new CsvSession(allEnv).start();
+    assert.strictEqual(allEnv.lastInit().peekSize, 0);
   });
 
   test('先頭の行は最大 100 行。残りは索引を作りながら数え、途中経過を送る', async () => {

@@ -507,6 +507,26 @@ table.grid {
   display: none;
 }
 
+/* 表とレコード表示の境界。ドラッグでレコード表示の幅を変える。幅を取らないよう左右に食い込ませる */
+.record-splitter {
+  position: relative;
+  z-index: 4;
+  flex: none;
+  width: 6px;
+  margin-right: -4px;
+  margin-left: -2px;
+  cursor: col-resize;
+}
+
+.main:has(> .record-view[hidden]) > .record-splitter {
+  display: none;
+}
+
+body.resizing-record {
+  cursor: col-resize;
+  user-select: none;
+}
+
 .record-header {
   display: flex;
   gap: 8px;

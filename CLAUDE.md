@@ -1,6 +1,6 @@
 # CSV Loupe
 
-<!-- 何をする拡張機能かを 1〜2 文で書く -->
+CSV と TSV を読み取り専用の表で開く VS Code 拡張機能。大容量のファイルでもすぐに中身を確かめられることに絞り、編集や分析はしない。
 
 VS Code 拡張機能。TypeScript + esbuild。Marketplace 公開を目指す。
 
@@ -98,7 +98,23 @@ npm run verify:package  # 公開パッケージに入るファイルが意図し
 ```text
 src/
 ├── extension.ts        エントリポイント。登録だけ行い、ロジックを置かない
-├── hello.ts            サンプルのコマンドの中身（vscode 非依存）
+├── core/               vscode に依存しない中身（単体テストする）
+│   ├── session.ts      1 つのエディタの状態と操作。host と Webview の間を取り持つ
+│   ├── protocol.ts     拡張機能ホストと Webview の間のメッセージの型（両側で共有）
+│   ├── jobs.ts         時間のかかる処理（索引、検索、並べ替え）の定義
+│   ├── translate.ts    翻訳の表から翻訳関数を作る（Webview は vscode.l10n を使えない）
+│   ├── webviewHtml.ts  Webview の HTML と CSP
+│   ├── csv/            CSV の解析、区切り文字、ヘッダーの判別
+│   ├── encoding/       文字コードの判定と変換
+│   ├── index/          行の位置の索引（大容量のファイルを途中から読むため）
+│   ├── read/           索引を使って行を読む
+│   ├── search/         Find と Find Same Value
+│   ├── sort/           並べ替え
+│   ├── source/         ファイルを範囲を指定して読む。テストではメモリ上のものに差し替える
+│   └── view/           表示用の値（セルの文字、列、ラベル、移動、表示範囲）
+├── host/               vscode に依存する部分。CustomReadonlyEditorProvider と Worker の起動
+├── worker/worker.ts    Worker の入口。索引や検索を主スレッドの外で動かす
+├── webview/            Webview 側のスクリプトと CSS。dist/ にブラウザ向けでバンドルする
 ├── tooling/            npm run try などの開発用スクリプトの中身（単体テストする）
 └── test/
     ├── unit/           単体テスト（vscode 非依存）
@@ -107,12 +123,21 @@ src/
 scripts/                npm scripts から呼ぶ Node スクリプト
 l10n/                   画面の文字列の日本語訳
 resources/              アイコン
+images/                 README 用のスクリーンショット（公開パッケージには入れない）
+docs/                   仕様と実装計画（git 管理外）
 ```
+
+esbuild が `dist/` にバンドルする入口は 4 つある。
+
+- `src/extension.ts`
+- `src/worker/worker.ts`
+- `src/webview/main.ts`
+- `src/webview/styles.css`
 
 ## 開発ルール
 
 - TDD で進める。先にテストを書いて失敗を確認し、その後に実装する（`.claude/rules/development.md`）
-- `vscode` モジュールに依存しない層は純粋関数にし、単体テストできる形を保つ。翻訳関数などは引数で受け取る（`src/hello.ts` を参照）
+- `vscode` モジュールに依存しない層は純粋関数にし、単体テストできる形を保つ。翻訳関数などは引数で受け取る（`src/core/view/labels.ts` を参照）
 - 外部プロセスやネットワークはインタフェースで抽象化し、テストではフェイクに差し替える
 - `strict` を維持し、`any` を使わない
 - 画面に出す文字列は `vscode.l10n.t('English text', ...args)` に通す。第 1 引数は単一の文字列リテラルにする（`+` でつなぐと実行時のキーと一致しなくなる）。足したら `l10n/bundle.l10n.ja.json` に日本語訳を足す。抜けや使われなくなった訳はテストが検出する。`package.json` の文字列は `%key%` にし、`package.nls.json` と `package.nls.ja.json` の両方へ定義する

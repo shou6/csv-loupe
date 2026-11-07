@@ -20,7 +20,7 @@ class FakeEnvironment implements SessionEnvironment {
   readonly copied: string[] = [];
   readonly opened: { line: number; encoding: EncodingId }[] = [];
   opens = 0;
-  stored: ViewPreferences = { hideEmptyValues: false };
+  stored: ViewPreferences = { hideEmptyValues: false, recordViewWidth: null };
   readonly saved: Partial<ViewPreferences>[] = [];
   peekSize: number | undefined = undefined;
   l10n: Record<string, string> | undefined = { Find: '検索' };
@@ -131,9 +131,12 @@ suite('CsvSession', () => {
 
   test('表示の好み（全ファイル共通）を init で送る', async () => {
     const env = new FakeEnvironment(utf8(csv(3)));
-    env.stored = { hideEmptyValues: true };
+    env.stored = { hideEmptyValues: true, recordViewWidth: 420 };
     await new CsvSession(env).start();
-    assert.deepStrictEqual(env.lastInit().preferences, { hideEmptyValues: true });
+    assert.deepStrictEqual(env.lastInit().preferences, {
+      hideEmptyValues: true,
+      recordViewWidth: 420,
+    });
   });
 
   test('Webview から表示の好みを受け取ると保存する', async () => {

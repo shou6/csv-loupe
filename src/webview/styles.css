@@ -426,6 +426,15 @@ table.grid {
   background: color-mix(in srgb, var(--loupe-header-bg) 75%, var(--loupe-accent));
 }
 
+/* 列幅を内容に合わせるときに、値の幅を測る要素 */
+.grid-measure {
+  position: absolute;
+  top: -9999px;
+  left: -9999px;
+  white-space: pre;
+  visibility: hidden;
+}
+
 .grid th .resizer {
   position: absolute;
   top: 0;

@@ -8,7 +8,10 @@ import { appendTrimmed, el } from './dom';
 export class RecordView {
   readonly element: HTMLElement;
 
-  constructor(private readonly onClose: () => void) {
+  constructor(
+    private readonly onClose: () => void,
+    private readonly onStep: (direction: 'previous' | 'next') => void
+  ) {
     this.element = el('aside', { className: 'record-view', attrs: { hidden: '' } });
   }
 
@@ -28,6 +31,7 @@ export class RecordView {
     header: string[],
     row: RowData | undefined,
     selectedColumn: number | undefined,
+    canStep: { previous: boolean; next: boolean },
     t: Translate
   ): void {
     if (!this.open) {
@@ -53,6 +57,24 @@ export class RecordView {
       el('span', { className: 'strong', text: t('Row {0}', row.row.toLocaleString('en-US')) }),
       el('span', { text: t('Source Line {0}', row.line.toLocaleString('en-US')) })
     );
+    const step = (direction: 'previous' | 'next', text: string, label: string) => {
+      const button = el('button', {
+        className: 'icon',
+        text,
+        title: label,
+        attrs: { 'aria-label': label },
+        on: { click: () => this.onStep(direction) },
+      });
+      button.disabled = !canStep[direction];
+      return button;
+    };
+    const actions = el(
+      'div',
+      { className: 'record-actions' },
+      step('previous', '↑', t('Previous Row')),
+      step('next', '↓', t('Next Row')),
+      close
+    );
     const list = el(
       'dl',
       { className: 'record-list' },
@@ -64,6 +86,6 @@ export class RecordView {
         return [el('dt', { className: selected, text: pair.name, title: pair.name }), value];
       })
     );
-    this.element.replaceChildren(el('div', { className: 'record-header' }, title, close), list);
+    this.element.replaceChildren(el('div', { className: 'record-header' }, title, actions), list);
   }
 }

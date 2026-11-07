@@ -16,6 +16,8 @@
   "(column {0})": "（{0} 列目）",
   "Close": "閉じる",
   "Record View": "レコード表示",
+  "Previous Row": "前の行",
+  "Next Row": "次の行",
   "Select a cell to see its row.": "セルを選ぶと、その行を表示します。",
   "Row {0}": "行 {0}",
   "Source Line {0}": "元のファイルの {0} 行目",

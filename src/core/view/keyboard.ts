@@ -114,3 +114,19 @@ export function moveCell(
       return { index: lastRow, columnIndex };
   }
 }
+
+/**
+ * レコード表示の「前の行」「次の行」で移る先の index。範囲と順は ↑ / ↓ と同じ。
+ * 範囲の端か、選んだ行の位置が分からなければ undefined（ボタンを無効にする）。
+ */
+export function stepRow(
+  index: number | undefined,
+  direction: 'previous' | 'next',
+  rowCount: number
+): number | undefined {
+  if (index === undefined) {
+    return undefined;
+  }
+  const next = direction === 'previous' ? index - 1 : index + 1;
+  return next >= 0 && next < rowCount ? next : undefined;
+}

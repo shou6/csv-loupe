@@ -41,6 +41,8 @@ export type SortStatus = 'sorting' | 'done' | 'cleared' | 'counting' | 'tooLarge
 export interface ViewPreferences {
   /** レコード表示で、値が空文字の列を隠す */
   hideEmptyValues: boolean;
+  /** ドラッグで変えたレコード表示の幅（px）。null は既定の幅 */
+  recordViewWidth: number | null;
 }
 
 /** 右クリックメニューのコマンド */

@@ -73,6 +73,28 @@
         "priority": "default"
       }
     ],
+    "configuration": {
+      "title": "CSV Loupe",
+      "properties": {
+        "csvLoupe.initialRowCount": {
+          "type": "string",
+          "enum": [
+            "1",
+            "10",
+            "100",
+            "all"
+          ],
+          "enumItemLabels": [
+            "1",
+            "10",
+            "100",
+            "All"
+          ],
+          "default": "10",
+          "markdownDescription": "%config.initialRowCount%"
+        }
+      }
+    },
     "commands": [
       {
         "command": "csvLoupe.copyCell",

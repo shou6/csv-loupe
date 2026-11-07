@@ -700,6 +700,8 @@ function onInit(message: InitMessage): void {
   if (!state.init) {
     // 最初に開いたときだけ保存してある好みを使う。読み直しでは今の状態を保つ
     state.hideEmptyValues = message.preferences.hideEmptyValues;
+    // 最初に開いたときだけ設定の表示行数を使う。読み直しでは今の表示行数を保つ
+    state.peekSize = message.peekSize;
   }
   state.init = message;
   state.rowsCounted = message.rowsCounted;

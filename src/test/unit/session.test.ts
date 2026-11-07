@@ -22,6 +22,7 @@ class FakeEnvironment implements SessionEnvironment {
   opens = 0;
   stored: ViewPreferences = { hideEmptyValues: false };
   readonly saved: Partial<ViewPreferences>[] = [];
+  peekSize: number | undefined = undefined;
   l10n: Record<string, string> | undefined = { Find: '検索' };
 
   constructor(
@@ -141,6 +142,17 @@ suite('CsvSession', () => {
     await session.start();
     await session.handle({ type: 'savePreferences', preferences: { hideEmptyValues: true } });
     assert.deepStrictEqual(env.saved, [{ hideEmptyValues: true }]);
+  });
+
+  test('開いたときの表示行数を、環境の設定から init で送る。未設定なら 10', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    await new CsvSession(env).start();
+    assert.strictEqual(env.lastInit().peekSize, 10);
+
+    const allEnv = new FakeEnvironment(utf8(csv(3)));
+    allEnv.peekSize = 0;
+    await new CsvSession(allEnv).start();
+    assert.strictEqual(allEnv.lastInit().peekSize, 0);
   });
 
   test('先頭の行は最大 100 行。残りは索引を作りながら数え、途中経過を送る', async () => {

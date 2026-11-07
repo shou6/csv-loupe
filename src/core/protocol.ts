@@ -98,6 +98,8 @@ export interface InitMessage {
   countDone: boolean;
   /** 保存してある表示の好み。読み直しでは Webview は使わない */
   preferences: ViewPreferences;
+  /** 開いたときの表示行数（設定から）。0 は All。読み直しでは Webview は使わない */
+  peekSize: number;
   /** 翻訳の表（vscode.l10n.bundle）。英語のときは無い */
   l10n?: Record<string, string>;
 }

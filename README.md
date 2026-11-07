@@ -25,7 +25,7 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 - **Go to Row and Tail**: jump to a row number or to the last rows.
 - **Source location**: shows the Row and the line in the source file, and opens the file in the text editor at that line.
 - **File change notice**: when the file changes on disk, CSV Loupe shows a notice with a **Reload** button.
-- **Colors**: its own color scheme with a teal accent and alternating row colors, following the light or dark theme. High contrast themes use the theme colors.
+- **Colors**: its own color scheme with a purple accent and alternating row colors, following the light or dark theme. High contrast themes use the theme colors.
 
 ## Screenshots
 
@@ -57,6 +57,12 @@ Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
 - `Ctrl+C` (`Cmd+C`) copies the selected cell.
 - Double-click a cell to open **Record View** for its row.
 - To edit the file as text, run **View: Reopen Editor With...** and choose **Text Editor**.
+
+## Settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `csvLoupe.initialRowCount` | `10` | Number of rows shown when a file is opened (`1` / `10` / `100` / `all`). Applies to files opened after the change. |
 
 ## Notes
 

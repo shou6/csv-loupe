@@ -22,3 +22,8 @@ export function recordPairs(header: string[], cells: string[], t: Translate): Re
   }
   return pairs;
 }
+
+/** 値が空文字の組を除く。空白だけの値は空白の印で気付けるよう残す */
+export function withoutEmptyValues(pairs: RecordPair[]): RecordPair[] {
+  return pairs.filter((pair) => pair.value !== '');
+}

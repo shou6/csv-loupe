@@ -47,7 +47,7 @@ npm run try   # 手元の VS Code に入れ直す
 
 | 結果 | すること |
 | --- | --- |
-| 影響なし、または改善 | PR にコメントで調査結果を書き、ユーザーの了承を得てから `gh pr merge <番号> --squash --delete-branch`（CI が通っていること） |
+| 影響なし、または改善 | PR にコメントで調査結果を書き、ユーザーの了承を得てから `gh pr merge <番号> --merge --delete-branch`（CI が通っていること） |
 | 壊れる、対応が要る | PR にコメントで理由を書いて閉じる。今後も上げないなら `.github/dependabot.yml` の `ignore` に理由と一緒に足す（別の Issue で） |
 | 直せば取り込める | Issue を作り、その Issue のブランチで更新と修正をまとめて行う |
 | 判断がつかない | PR にコメントして `needs:user` ラベルを付け、ユーザーに聞く |

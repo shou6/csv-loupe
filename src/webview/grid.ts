@@ -165,9 +165,19 @@ export class GridView {
     this.refresh();
   }
 
+  /** 画面の先頭に描いている行の index */
+  topIndex(): number {
+    return this.firstIndex;
+  }
+
+  /** 1 画面に入る行数 */
+  pageRows(): number {
+    return Math.max(1, Math.floor(this.rowsHeight() / ROW_HEIGHT));
+  }
+
   /** index 番目の行が画面に入っていなければ、入るようにスクロールする */
   revealIndex(index: number): void {
-    const visible = Math.max(1, Math.floor(this.rowsHeight() / ROW_HEIGHT));
+    const visible = this.pageRows();
     if (index < this.firstIndex || index >= this.firstIndex + visible) {
       this.scrollToIndex(Math.max(0, index - Math.floor(visible / 3)));
     } else {

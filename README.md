@@ -58,6 +58,12 @@ Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
 - Double-click a cell to open **Record View** for its row.
 - To edit the file as text, run **View: Reopen Editor With...** and choose **Text Editor**.
 
+## Settings
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `csvLoupe.initialRowCount` | `10` | Number of rows shown when a file is opened (`1` / `10` / `100` / `all`). Applies to files opened after the change. |
+
 ## Notes
 
 - Go to Row, Tail, and sorting become available after CSV Loupe finishes counting rows.

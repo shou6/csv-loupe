@@ -7,6 +7,7 @@ import { CsvSession, SessionEnvironment } from '../core/session';
 import { ByteSource } from '../core/source/byteSource';
 import { MemorySource } from '../core/source/memorySource';
 import { NodeFileSource } from '../core/source/nodeFileSource';
+import { peekSizeFromSetting } from '../core/view/peekSize';
 import { buildWebviewHtml } from '../core/webviewHtml';
 import { CsvLoupeTestApi } from './testApi';
 import { WorkerJobRunner } from './workerJobRunner';
@@ -98,6 +99,10 @@ export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvid
     return {
       fileName: path.posix.basename(uri.path),
       l10n: vscode.l10n.bundle,
+      // 開いた時点の設定を使う。あとで設定を変えても、開いているエディタには反映しない
+      peekSize: peekSizeFromSetting(
+        vscode.workspace.getConfiguration('csvLoupe').get('initialRowCount')
+      ),
       open: async (): Promise<{ source: ByteSource; runner: JobRunner }> => {
         if (uri.scheme === 'file') {
           return {

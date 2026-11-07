@@ -5,5 +5,6 @@
   "command.copyRow": "行をコピー",
   "command.findSameValue": "同じ値を検索",
   "command.openRecordView": "レコード表示を開く",
-  "command.openSourceAtRow": "元のファイルの該当行を開く"
+  "command.openSourceAtRow": "元のファイルの該当行を開く",
+  "config.initialRowCount": "ファイルを開いたときの表示行数。`All` は全行を表示する。変更は、そのあとに開いたファイルから使う。"
 }

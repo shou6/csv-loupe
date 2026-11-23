@@ -1,7 +1,8 @@
 /*
- * CSV Loupe の配色。アクセント色（紫）を持ち、背景はテーマのエディターの背景色にアクセントを
+ * CSV Loupe の配色。アクセント色を持ち、背景はテーマのエディターの背景色にアクセントを
  * 混ぜて作る。ダークとライトでアクセントを変え、ハイコントラストではテーマの色に戻す。
  * body のクラス（vscode-dark など）は VS Code が付ける。
+ * テーマ（設定 csvLoupe.colorTheme）は body の data-color-theme で切り替える。既定は紫（purple）。
  */
 body {
   --loupe-accent: #a78bfa;
@@ -40,8 +41,43 @@ body.vscode-light {
   --loupe-button-hover: color-mix(in srgb, var(--loupe-bg) 84%, var(--loupe-fg));
 }
 
+/* 青緑（teal） */
+body[data-color-theme='teal'] {
+  --loupe-accent: #2fb8a6;
+  --loupe-accent-strong: #52d6c4;
+  --loupe-on-accent: #06221e;
+}
+
+body.vscode-light[data-color-theme='teal'] {
+  --loupe-accent: #0f8f80;
+  --loupe-accent-strong: #0a7064;
+  --loupe-on-accent: #ffffff;
+}
+
+/* VS Code のテーマに従う（vscode）。独自のアクセント色を混ぜず、テーマの色を使う */
+body[data-color-theme='vscode'] {
+  --loupe-accent: var(--vscode-button-background);
+  --loupe-accent-strong: var(--vscode-textLink-foreground);
+  --loupe-on-accent: var(--vscode-button-foreground);
+  --loupe-toolbar-bg: var(--vscode-editor-background);
+  --loupe-header-bg: color-mix(in srgb, var(--loupe-bg) 90%, var(--loupe-fg));
+  --loupe-header-fg: var(--loupe-fg);
+  --loupe-row-number-bg: color-mix(in srgb, var(--loupe-bg) 96%, var(--loupe-fg));
+  --loupe-row-number-fg: var(--loupe-muted);
+  --loupe-row-selected: var(--vscode-editor-inactiveSelectionBackground);
+  --loupe-cell-selected: var(--vscode-editor-selectionBackground);
+  --loupe-match: var(--vscode-editor-findMatchHighlightBackground);
+  --loupe-match-current: var(--vscode-editor-findMatchBackground);
+  --loupe-marker: var(--loupe-muted);
+  --loupe-panel-bg: var(--vscode-editorWidget-background, var(--loupe-bg));
+  --loupe-focus: var(--vscode-focusBorder);
+}
+
+/* ハイコントラストでは、どのテーマを選んでもテーマの色を使う（テーマの指定より詳細度を上げる） */
 body.vscode-high-contrast,
-body.vscode-high-contrast-light {
+body.vscode-high-contrast-light,
+body.vscode-high-contrast[data-color-theme],
+body.vscode-high-contrast-light[data-color-theme] {
   --loupe-accent: var(--vscode-focusBorder);
   --loupe-accent-strong: var(--vscode-focusBorder);
   --loupe-on-accent: var(--vscode-editor-background);

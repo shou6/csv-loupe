@@ -14,7 +14,7 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 - **Opens large files immediately**: no "this file is large, open anyway?" prompt. The header and the first rows appear right away, and CSV Loupe counts the rows in the background.
 - **Encoding detection**: UTF-8, UTF-8 with BOM, UTF-16 LE / BE, and Shift_JIS (CP932). CSV Loupe marks a guessed encoding with `?`, and you can switch it from the toolbar.
 - **Delimiter**: comma for `.csv` and tab for `.tsv`. You can switch to comma, tab, semicolon, or pipe.
-- **Header detection**: CSV Loupe compares the first record with the rest to decide whether it is a header. When it cannot tell, it treats the first record as the header and shows `?` on the toolbar. You can switch it from the toolbar. Without a header, CSV Loupe names the columns "Column 1", "Column 2", and so on.
+- **Header detection**: CSV Loupe compares the first record with the rest to decide whether it is a header. When the file starts with a title or other rows above the table (common in files exported from spreadsheets), CSV Loupe skips those rows and uses the next one as the header. When it cannot tell, it shows `?` on the toolbar. You can choose the header row (None, or record 1 to 10) from the toolbar. Rows above the header are not shown. Without a header, CSV Loupe names the columns "Column 1", "Column 2", and so on.
 - **Quick Peek**: show 1, 10, or 100 rows to check the structure, or all rows with virtual scrolling.
 - **Table**: sticky header, row numbers, resizable columns, word wrap, and highlight of the selected cell and row. CSV Loupe trims leading and trailing spaces in cell values and shows a marker in their place.
 - **Sort**: click a column header to sort by that column, in ascending order, descending order, and then the original order.
@@ -25,7 +25,7 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 - **Go to Row and Tail**: jump to a row number or to the last rows.
 - **Source location**: shows the Row and the line in the source file, and opens the file in the text editor at that line.
 - **File change notice**: when the file changes on disk, CSV Loupe shows a notice with a **Reload** button.
-- **Colors**: its own color scheme with a purple accent and alternating row colors, following the light or dark theme. High contrast themes use the theme colors.
+- **Colors**: its own color scheme with an accent color and alternating row colors, following the light or dark theme. Choose purple (default), teal, or the VS Code theme colors from the toolbar or the `csvLoupe.colorTheme` setting. High contrast themes use the theme colors.
 
 ## Screenshots
 
@@ -73,6 +73,7 @@ Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
 | Setting | Default | Description |
 | --- | --- | --- |
 | `csvLoupe.initialRowCount` | `10` | Number of rows shown when a file is opened (`1` / `10` / `100` / `all`). Applies to files opened after the change. |
+| `csvLoupe.colorTheme` | `purple` | Color theme (`purple` / `teal` / `vscode`). `vscode` follows the VS Code theme colors without an accent color. You can also change it from the toolbar. Applies to all open editors. |
 
 ## Notes
 

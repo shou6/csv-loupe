@@ -2,7 +2,7 @@
   "name": "csv-loupe",
   "displayName": "CSV Loupe",
   "description": "%description%",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "shou6",
   "license": "MIT",
   "icon": "resources/icon.png",
@@ -92,6 +92,21 @@
           ],
           "default": "10",
           "markdownDescription": "%config.initialRowCount%"
+        },
+        "csvLoupe.colorTheme": {
+          "type": "string",
+          "enum": [
+            "purple",
+            "teal",
+            "vscode"
+          ],
+          "enumDescriptions": [
+            "%config.colorTheme.purple%",
+            "%config.colorTheme.teal%",
+            "%config.colorTheme.vscode%"
+          ],
+          "default": "purple",
+          "markdownDescription": "%config.colorTheme%"
         }
       }
     },

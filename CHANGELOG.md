@@ -3,6 +3,18 @@
 This file lists all notable changes to this extension.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0]
+
+### Added
+
+- Choose the header row from the toolbar: None, or record 1 to 10. Rows above the header are not shown.
+- Header detection skips title rows and empty rows above the table, which are common in files exported from spreadsheets, and uses the next row as the header.
+- Setting `csvLoupe.colorTheme` to choose the color theme: purple (default), teal, or the VS Code theme colors. You can also change it from the toolbar.
+
+### Fixed
+
+- The last row was partly hidden when you scrolled to the bottom, depending on the height of the editor.
+
 ## [0.2.0]
 
 ### Added

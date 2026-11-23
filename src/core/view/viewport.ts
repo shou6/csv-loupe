@@ -48,6 +48,10 @@ export function computeViewport(input: ViewportInput): Viewport {
   if (g.scaled) {
     const ratio = g.maxScroll > 0 ? scrollTop / g.maxScroll : 0;
     firstRow = 1 + Math.round(ratio * (g.maxFirstRow - 1));
+  } else if (g.maxScroll > 0 && scrollTop >= g.maxScroll) {
+    // 行は端数をずらさず先頭からそろえて描く。割り算の切り捨てのままだと、画面の高さが行の高さで
+    // 割り切れないとき最後の行がはみ出して切れるので、一番下では最後の行まで収まる先頭にする
+    firstRow = g.maxFirstRow;
   } else {
     firstRow = Math.floor(scrollTop / input.rowHeight) + 1;
   }

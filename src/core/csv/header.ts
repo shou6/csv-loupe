@@ -61,3 +61,43 @@ export function detectHeader(records: string[][]): HeaderDetection {
   }
   return { hasHeader: headerVotes > dataVotes, confident: true };
 }
+
+/** ヘッダーにできる最も下の行（ツールバーの選択肢の数） */
+export const MAX_HEADER_ROW = 10;
+
+export interface HeaderRowDetection {
+  /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし */
+  headerRow: number;
+  /** 判別に確信があるか。無ければ画面で ? を付ける */
+  confident: boolean;
+}
+
+/** 空でないセルの数 */
+function filledCount(record: string[]): number {
+  return record.filter((value) => value.trim() !== '').length;
+}
+
+/**
+ * ヘッダーが何行目にあるかを判別する。スプレッドシートから書き出したファイルは、表の上に
+ * タイトルなどの行があることがある。先頭から、空でないセルの数が典型（中央値）の半分に満たない行を
+ * 飛ばし（最大 MAX_HEADER_ROW - 1 行）、残りの先頭がヘッダーかを detectHeader で判別する。
+ * 行を飛ばしたときは、次の行をヘッダーとする。ヘッダーらしくなければ確信なしとする。
+ */
+export function detectHeaderRow(records: string[][]): HeaderRowDetection {
+  const sample = records.slice(0, SAMPLE + MAX_HEADER_ROW);
+  const counts = sample.map(filledCount).sort((a, b) => a - b);
+  const typical = counts.length > 0 ? counts[Math.floor(counts.length / 2)] : 0;
+  let skipped = 0;
+  while (
+    skipped < MAX_HEADER_ROW - 1 &&
+    skipped < sample.length - 1 &&
+    filledCount(sample[skipped]) * 2 < typical
+  ) {
+    skipped++;
+  }
+  const detection = detectHeader(records.slice(skipped));
+  if (skipped > 0) {
+    return { headerRow: skipped + 1, confident: detection.hasHeader && detection.confident };
+  }
+  return { headerRow: detection.hasHeader ? 1 : 0, confident: detection.confident };
+}

@@ -22,6 +22,7 @@ export function activate(context: vscode.ExtensionContext): CsvLoupeTestApi | un
       webviewOptions: { retainContextWhenHidden: true },
       supportsMultipleEditorsPerDocument: false,
     }),
+    vscode.workspace.onDidChangeConfiguration((event) => provider.configurationChanged(event)),
     ...CONTEXT_COMMANDS.map((command) =>
       vscode.commands.registerCommand('csvLoupe.' + command, (cell: unknown) =>
         provider.runContextCommand(command, cell)

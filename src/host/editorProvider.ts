@@ -8,6 +8,7 @@ import { CsvSession, SessionEnvironment } from '../core/session';
 import { ByteSource } from '../core/source/byteSource';
 import { MemorySource } from '../core/source/memorySource';
 import { NodeFileSource } from '../core/source/nodeFileSource';
+import { colorThemeFromSetting } from '../core/view/colorTheme';
 import { peekSizeFromSetting } from '../core/view/peekSize';
 import { buildWebviewHtml } from '../core/webviewHtml';
 import { CsvLoupeTestApi } from './testApi';
@@ -82,6 +83,15 @@ export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvid
     void session.start();
   }
 
+  /** 設定が変わったとき。配色のテーマは、開いているすべてのエディタに反映する */
+  configurationChanged(event: vscode.ConfigurationChangeEvent): void {
+    if (event.affectsConfiguration('csvLoupe.colorTheme')) {
+      for (const session of this.sessions.values()) {
+        session.colorThemeChanged();
+      }
+    }
+  }
+
   /** 元のファイルの変更を監視する。ワークスペースの外のファイルも、親フォルダを基準にして監視できる */
   private watch(uri: vscode.Uri, onChange: () => void): vscode.Disposable {
     const folder = vscode.Uri.joinPath(uri, '..');
@@ -129,6 +139,14 @@ export class CsvLoupeEditorProvider implements vscode.CustomReadonlyEditorProvid
       savePreferences: async (preferences) => {
         const current = readPreferences(this.globalState.get(PREFERENCES_KEY));
         await this.globalState.update(PREFERENCES_KEY, { ...current, ...preferences });
+      },
+      colorTheme: () =>
+        colorThemeFromSetting(vscode.workspace.getConfiguration('csvLoupe').get('colorTheme')),
+      saveColorTheme: async (theme) => {
+        // ツールバーで選んだテーマは全体（ユーザー）の設定に書く。変更の通知で全エディタに反映される
+        await vscode.workspace
+          .getConfiguration('csvLoupe')
+          .update('colorTheme', theme, vscode.ConfigurationTarget.Global);
       },
       openSource: async (line: number, encoding: EncodingId) => {
         const document = await vscode.workspace.openTextDocument(uri, { encoding });

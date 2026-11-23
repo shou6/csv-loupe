@@ -29,6 +29,21 @@ suite('computeViewport', () => {
     assert.strictEqual(view.visibleCount, 10);
   });
 
+  test('画面の高さが行の高さで割り切れなくても、一番下では最後の行まで全部見える', () => {
+    for (const viewportHeight of [181, 190, 199]) {
+      const scrollTop = 100 * 20 - viewportHeight;
+      const view = computeViewport(input({ viewportHeight, scrollTop }));
+      assert.strictEqual(view.firstRow, 92, String(viewportHeight));
+      assert.strictEqual(view.firstRow + view.visibleCount - 1, 100, String(viewportHeight));
+      assert.ok(view.visibleCount * 20 <= viewportHeight, String(viewportHeight));
+    }
+  });
+
+  test('一番下でない位置は、これまでどおり行の高さで割って先頭の Row を決める', () => {
+    const view = computeViewport(input({ viewportHeight: 190, scrollTop: 1809 }));
+    assert.strictEqual(view.firstRow, 91);
+  });
+
   test('上限を超えるときは、高さを上限に抑え、スクロールの比率で Row を決める', () => {
     const big = { totalRows: 10_000_000, rowHeight: 24, viewportHeight: 480 };
     const maxContentHeight = 10_000_000;

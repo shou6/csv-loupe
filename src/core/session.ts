@@ -1,6 +1,7 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
-import { detectHeader } from './csv/header';
+import { ColorTheme, colorThemeFromSetting } from './view/colorTheme';
+import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
 import { SparseIndex } from './index/sparseIndex';
@@ -49,6 +50,10 @@ export interface SessionEnvironment {
   /** 保存してある表示の好み（全ファイル共通） */
   preferences(): ViewPreferences;
   savePreferences(preferences: Partial<ViewPreferences>): Promise<void>;
+  /** 設定の配色のテーマ（全ファイル共通） */
+  colorTheme(): ColorTheme;
+  /** 配色のテーマを設定に保存する */
+  saveColorTheme(theme: ColorTheme): Promise<void>;
 }
 
 /** 読み込んだファイルの状態。読み直すたびに作り直す */
@@ -58,7 +63,7 @@ interface Loaded {
   runner: JobRunner;
   format: CsvFormat;
   index: SparseIndex;
-  /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
+  /** Row 1 にあたるレコードの番号（0 始まり）。ヘッダーの行の番号（1 始まり）と同じ値 */
   firstDataRecord: number;
   initialRows: number;
   rowsCounted: number;
@@ -112,7 +117,7 @@ export class CsvSession {
   /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
-  private headerChoice: boolean | undefined;
+  private headerChoice: number | undefined;
 
   constructor(
     private readonly env: SessionEnvironment,
@@ -191,11 +196,16 @@ export class CsvSession {
           await this.load();
           break;
         case 'setHeader':
-          this.headerChoice = message.hasHeader;
+          this.headerChoice = Math.max(0, Math.min(MAX_HEADER_ROW, Math.floor(message.headerRow)));
           await this.load();
           break;
         case 'reload':
           await this.load();
+          break;
+        case 'setColorTheme':
+          if (colorThemeFromSetting(message.theme) === message.theme) {
+            await this.env.saveColorTheme(message.theme);
+          }
           break;
         case 'copy':
           await this.env.copy(message.text);
@@ -220,6 +230,15 @@ export class CsvSession {
   /** 右クリックメニューのコマンド。処理は表示中のデータを持つ Webview が行う */
   contextCommand(command: ContextCommand, row: number, column: number): void {
     this.env.post({ type: 'contextCommand', command, row, column });
+  }
+
+  /** 設定の配色のテーマが変わったとき。Webview に知らせ、送り直す init も新しいテーマにする */
+  colorThemeChanged(): void {
+    const theme = this.env.colorTheme();
+    if (this.loaded) {
+      this.loaded.init = { ...this.loaded.init, colorTheme: theme };
+    }
+    this.env.post({ type: 'colorTheme', theme });
   }
 
   fileChanged(): void {
@@ -401,13 +420,13 @@ export class CsvSession {
         delimiter: this.delimiterChoice ?? delimiterForFileName(this.env.fileName),
         dataStart: bomLength(detection.encoding, head),
       };
-      const headRecords = await readHead(source, format, INITIAL_ROWS + 1);
+      const headRecords = await readHead(source, format, INITIAL_ROWS + MAX_HEADER_ROW);
       const header =
         this.headerChoice !== undefined
-          ? { hasHeader: this.headerChoice, confident: true }
-          : detectHeader(headRecords.records.map((record) => record.cells));
-      const initial = shapeInitial(headRecords, header.hasHeader, INITIAL_ROWS);
-      const firstDataRecord = header.hasHeader ? 1 : 0;
+          ? { headerRow: this.headerChoice, confident: true }
+          : detectHeaderRow(headRecords.records.map((record) => record.cells));
+      const initial = shapeInitial(headRecords, header.headerRow, INITIAL_ROWS);
+      const firstDataRecord = header.headerRow;
       if (generation !== this.generation) {
         await source.close();
         return;
@@ -430,7 +449,7 @@ export class CsvSession {
           encoding: detection.encoding,
           encodingConfident: detection.confident,
           delimiter: format.delimiter,
-          hasHeader: header.hasHeader,
+          headerRow: header.headerRow,
           headerConfident: header.confident,
           header: initial.header,
           columnCount: Math.max(0, ...headRecords.records.map((record) => record.cells.length)),
@@ -438,6 +457,7 @@ export class CsvSession {
           rowsCounted: initial.rows.length,
           countDone: initial.complete,
           preferences: this.env.preferences(),
+          colorTheme: this.env.colorTheme(),
           peekSize: this.env.peekSize ?? DEFAULT_PEEK_SIZE,
           l10n: this.env.l10n,
         },

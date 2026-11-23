@@ -42,7 +42,7 @@ export function sortOrder(keys: string[], direction: SortDirection): Uint32Array
 
 /**
  * ファイル全体の column 列の値で並べ替え、並べ替えた順の Row（1 始まり）を返す。
- * firstDataRecord は Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0）。
+ * firstDataRecord は Row 1 にあたるレコードの番号（0 始まり。ヘッダーの行の番号と同じで、ヘッダーなしなら 0）。
  */
 export async function sortRows(
   source: ByteSource,

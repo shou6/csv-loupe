@@ -50,9 +50,9 @@
   "Reload": "再読み込み",
   "Column {0}": "列 {0}",
   "Header row": "ヘッダー",
-  "Yes": "あり",
-  "No": "なし",
-  "Whether the first row is a header was guessed. Change it if it looks wrong.": "ヘッダーの有無は推定です。違っている場合は切り替えてください。",
+  "None": "なし",
+  "Record {0}": "{0} 行目",
+  "Which row is the header was guessed. Change it if it looks wrong.": "ヘッダーの行は推定です。違っている場合は選び直してください。",
   "The value has spaces at the start or end.": "値の先頭か末尾に空白があります。",
   "Clear Search (Esc)": "検索をリセット (Esc)",
   "Filter columns": "列名で絞り込む",
@@ -61,5 +61,9 @@
   "Sorting…": "並べ替え中…",
   "Sorting is available after row counting finishes.": "並べ替えは、行数を数え終えると使えます。",
   "Sorting is available for files with up to {0} rows.": "並べ替えは、{0} 行までのファイルで使えます。",
-  "Click to sort": "クリックで並べ替え（昇順 → 降順 → 元の順）"
+  "Click to sort": "クリックで並べ替え（昇順 → 降順 → 元の順）",
+  "Color Theme": "配色",
+  "Purple": "紫",
+  "Teal": "青緑",
+  "VS Code Theme": "VS Code のテーマ"
 }

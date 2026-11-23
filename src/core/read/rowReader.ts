@@ -41,10 +41,13 @@ export async function readHead(
   return { records, complete };
 }
 
-/** 先頭のレコードを、ヘッダーと先頭の maxRows 行に分ける */
-export function shapeInitial(head: HeadRecords, hasHeader: boolean, maxRows: number): InitialRows {
-  const header = hasHeader ? (head.records[0]?.cells ?? []) : [];
-  const data = hasHeader ? head.records.slice(1) : head.records;
+/**
+ * 先頭のレコードを、ヘッダーと先頭の maxRows 行に分ける。headerRow はヘッダーのレコードの番号
+ * （1 始まり、0 はヘッダーなし）。ヘッダーより上のレコードは捨てる
+ */
+export function shapeInitial(head: HeadRecords, headerRow: number, maxRows: number): InitialRows {
+  const header = headerRow > 0 ? (head.records[headerRow - 1]?.cells ?? []) : [];
+  const data = head.records.slice(headerRow);
   return {
     header,
     rows: data.slice(0, maxRows).map((record, i) => ({
@@ -56,20 +59,23 @@ export function shapeInitial(head: HeadRecords, hasHeader: boolean, maxRows: num
   };
 }
 
-/** 開いた直後に表示する、ヘッダーと先頭の maxRows 行。ヘッダーなしなら先頭のレコードを Row 1 にする */
+/**
+ * 開いた直後に表示する、ヘッダーと先頭の maxRows 行。ヘッダーの次のレコードを Row 1 にする。
+ * ヘッダーなし（headerRow が 0）なら先頭のレコードを Row 1 にする
+ */
 export async function readInitial(
   source: ByteSource,
   format: CsvFormat,
   maxRows: number,
-  hasHeader = true
+  headerRow = 1
 ): Promise<InitialRows> {
-  const head = await readHead(source, format, maxRows + (hasHeader ? 1 : 0));
-  return shapeInitial(head, hasHeader, maxRows);
+  const head = await readHead(source, format, maxRows + headerRow);
+  return shapeInitial(head, headerRow, maxRows);
 }
 
 /**
  * Row fromRow から count 行を読む。rowLimit（その時点で読める行数）を超えた分は返さない。
- * firstDataRecord は Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0）。
+ * firstDataRecord は Row 1 にあたるレコードの番号（0 始まり。ヘッダーの行の番号と同じで、ヘッダーなしなら 0）。
  * 索引の直前の記録点から読み進める。
  */
 export async function readRows(

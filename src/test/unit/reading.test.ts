@@ -228,7 +228,7 @@ suite('readInitial', () => {
   });
 
   test('ヘッダーなしのときは、先頭のレコードを Row 1 にする', async () => {
-    const result = await readInitial(new MemorySource(utf8('a,b\n"c\nd",e\n')), UTF8, 10, false);
+    const result = await readInitial(new MemorySource(utf8('a,b\n"c\nd",e\n')), UTF8, 10, 0);
     assert.deepStrictEqual(result, {
       header: [],
       rows: [
@@ -241,10 +241,22 @@ suite('readInitial', () => {
 
   test('ヘッダーなしでも、maxRows 行で止めて最後まで読んだかを返す', async () => {
     const records = (n: number) => Array.from({ length: n }, (_, i) => i + ',x').join('\n') + '\n';
-    const over = await readInitial(new MemorySource(utf8(records(101))), UTF8, 100, false);
+    const over = await readInitial(new MemorySource(utf8(records(101))), UTF8, 100, 0);
     assert.deepStrictEqual([over.rows.length, over.complete], [100, false]);
-    const exact = await readInitial(new MemorySource(utf8(records(100))), UTF8, 100, false);
+    const exact = await readInitial(new MemorySource(utf8(records(100))), UTF8, 100, 0);
     assert.deepStrictEqual([exact.rows.length, exact.complete], [100, true]);
+  });
+
+  test('ヘッダーを 2 行目にすると、1 行目を除き 3 行目を Row 1 にする', async () => {
+    const result = await readInitial(new MemorySource(utf8('title\nid,v\n1,a\n2,b\n')), UTF8, 10, 2);
+    assert.deepStrictEqual(result, {
+      header: ['id', 'v'],
+      rows: [
+        { row: 1, line: 3, cells: ['1', 'a'] },
+        { row: 2, line: 4, cells: ['2', 'b'] },
+      ],
+      complete: true,
+    });
   });
 
   test('区切り文字と文字コードに従う', async () => {

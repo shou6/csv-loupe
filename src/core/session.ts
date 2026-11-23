@@ -1,6 +1,6 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
-import { detectHeader } from './csv/header';
+import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
 import { SparseIndex } from './index/sparseIndex';
@@ -58,7 +58,7 @@ interface Loaded {
   runner: JobRunner;
   format: CsvFormat;
   index: SparseIndex;
-  /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
+  /** Row 1 にあたるレコードの番号（0 始まり）。ヘッダーの行の番号（1 始まり）と同じ値 */
   firstDataRecord: number;
   initialRows: number;
   rowsCounted: number;
@@ -112,7 +112,7 @@ export class CsvSession {
   /** 画面で選んだ文字コードと区切り文字。再読み込みでも保つ */
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
-  private headerChoice: boolean | undefined;
+  private headerChoice: number | undefined;
 
   constructor(
     private readonly env: SessionEnvironment,
@@ -191,7 +191,7 @@ export class CsvSession {
           await this.load();
           break;
         case 'setHeader':
-          this.headerChoice = message.hasHeader;
+          this.headerChoice = Math.max(0, Math.min(MAX_HEADER_ROW, Math.floor(message.headerRow)));
           await this.load();
           break;
         case 'reload':
@@ -401,13 +401,13 @@ export class CsvSession {
         delimiter: this.delimiterChoice ?? delimiterForFileName(this.env.fileName),
         dataStart: bomLength(detection.encoding, head),
       };
-      const headRecords = await readHead(source, format, INITIAL_ROWS + 1);
+      const headRecords = await readHead(source, format, INITIAL_ROWS + MAX_HEADER_ROW);
       const header =
         this.headerChoice !== undefined
-          ? { hasHeader: this.headerChoice, confident: true }
-          : detectHeader(headRecords.records.map((record) => record.cells));
-      const initial = shapeInitial(headRecords, header.hasHeader, INITIAL_ROWS);
-      const firstDataRecord = header.hasHeader ? 1 : 0;
+          ? { headerRow: this.headerChoice, confident: true }
+          : detectHeaderRow(headRecords.records.map((record) => record.cells));
+      const initial = shapeInitial(headRecords, header.headerRow, INITIAL_ROWS);
+      const firstDataRecord = header.headerRow;
       if (generation !== this.generation) {
         await source.close();
         return;
@@ -430,7 +430,7 @@ export class CsvSession {
           encoding: detection.encoding,
           encodingConfident: detection.confident,
           delimiter: format.delimiter,
-          hasHeader: header.hasHeader,
+          headerRow: header.headerRow,
           headerConfident: header.confident,
           header: initial.header,
           columnCount: Math.max(0, ...headRecords.records.map((record) => record.cells.length)),

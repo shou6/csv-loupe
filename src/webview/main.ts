@@ -1,4 +1,5 @@
 import { DELIMITERS, delimiterChar } from '../core/csv/delimiter';
+import { MAX_HEADER_ROW } from '../core/csv/header';
 import { formatRecord } from '../core/csv/format';
 import {
   ContextCommand,
@@ -769,29 +770,30 @@ function delimiterSelect(init: InitMessage): HTMLElement {
   return el('label', { className: 'picker' }, el('span', { text: t('Delimiter') }), select);
 }
 
-/** ヘッダーの有無の表示と切り替え。判別に確信がなければ ? を付けて目立たせる */
+/** ヘッダーの行（なし / 1〜10 行目）の表示と切り替え。判別に確信がなければ ? を付けて目立たせる */
 function headerSelect(init: InitMessage): HTMLElement {
   const mark = init.headerConfident ? '' : '?';
+  const rows = Array.from({ length: MAX_HEADER_ROW + 1 }, (_, row) => row);
   const select = el(
     'select',
     {
       className: init.headerConfident ? '' : 'uncertain',
       attrs: { 'aria-label': t('Header row') },
-      on: { change: () => post({ type: 'setHeader', hasHeader: select.value === 'yes' }) },
+      on: { change: () => post({ type: 'setHeader', headerRow: Number(select.value) }) },
     },
-    el('option', {
-      text: t('Yes') + (init.hasHeader ? mark : ''),
-      attrs: { value: 'yes' },
-    }),
-    el('option', {
-      text: t('No') + (init.hasHeader ? '' : mark),
-      attrs: { value: 'no' },
-    })
+    ...rows.map((row) =>
+      el('option', {
+        text:
+          (row === 0 ? t('None') : t('Record {0}', String(row))) +
+          (row === init.headerRow ? mark : ''),
+        attrs: { value: String(row) },
+      })
+    )
   );
-  select.value = init.hasHeader ? 'yes' : 'no';
+  select.value = String(init.headerRow);
   select.title = init.headerConfident
     ? t('Header row')
-    : t('Whether the first row is a header was guessed. Change it if it looks wrong.');
+    : t('Which row is the header was guessed. Change it if it looks wrong.');
   return el('label', { className: 'picker' }, el('span', { text: t('Header row') }), select);
 }
 
@@ -828,7 +830,7 @@ function onInit(message: InitMessage): void {
   grid.whitespaceTitle = t('The value has spaces at the start or end.');
   grid.sortTitle = t('Click to sort');
   grid.sortingTitle = t('Sorting…');
-  const columns = columnNames(message.header, message.hasHeader, message.columnCount, t);
+  const columns = columnNames(message.header, message.headerRow > 0, message.columnCount, t);
   const sameColumns = JSON.stringify(state.columns) === JSON.stringify(columns);
   state.columns = columns;
   if (!sameColumns) {

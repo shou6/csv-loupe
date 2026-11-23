@@ -67,7 +67,8 @@ export type WebviewMessage =
   | { type: 'cancelFind' }
   | { type: 'setEncoding'; encoding: EncodingChoice }
   | { type: 'setDelimiter'; delimiter: DelimiterId }
-  | { type: 'setHeader'; hasHeader: boolean }
+  /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし */
+  | { type: 'setHeader'; headerRow: number }
   | { type: 'reload' }
   | { type: 'copy'; text: string }
   | { type: 'openSource'; line: number }
@@ -84,9 +85,9 @@ export interface InitMessage {
   /** 文字コードの判定に確信があるか */
   encodingConfident: boolean;
   delimiter: DelimiterId;
-  /** 先頭のレコードをヘッダーとして扱うか */
-  hasHeader: boolean;
-  /** ヘッダーの有無の判別に確信があるか */
+  /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし。それより上のレコードは表に出さない */
+  headerRow: number;
+  /** ヘッダーの行の判別に確信があるか */
   headerConfident: boolean;
   /** ヘッダー。ヘッダーなしのときは空 */
   header: string[];

@@ -6,5 +6,9 @@
   "command.findSameValue": "Find Same Value",
   "command.openRecordView": "Open Record View",
   "command.openSourceAtRow": "Open Source at Row",
-  "config.initialRowCount": "Number of rows shown when a file is opened. `All` shows every row. Applies to files opened after the change."
+  "config.initialRowCount": "Number of rows shown when a file is opened. `All` shows every row. Applies to files opened after the change.",
+  "config.colorTheme": "Color theme of the table. You can also change it from the toolbar. Applies to all open editors.",
+  "config.colorTheme.purple": "Purple accent (default).",
+  "config.colorTheme.teal": "Teal accent.",
+  "config.colorTheme.vscode": "Follow the colors of the VS Code theme, without an accent color."
 }

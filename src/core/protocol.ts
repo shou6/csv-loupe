@@ -2,6 +2,8 @@
  * 拡張機能ホストと Webview の間でやり取りするメッセージの型。両側でこのファイルを共有する。
  */
 
+import { ColorTheme } from './view/colorTheme';
+
 /** 文字コード。utf8bom は「BOM 付きの UTF-8」を表す */
 export type EncodingId = 'utf8' | 'utf8bom' | 'utf16le' | 'utf16be' | 'shiftjis';
 
@@ -70,6 +72,8 @@ export type WebviewMessage =
   /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし */
   | { type: 'setHeader'; headerRow: number }
   | { type: 'reload' }
+  /** ツールバーで選んだ配色のテーマを設定に保存する */
+  | { type: 'setColorTheme'; theme: ColorTheme }
   | { type: 'copy'; text: string }
   | { type: 'openSource'; line: number }
   /** 変えた表示の好みを保存する */
@@ -101,6 +105,8 @@ export interface InitMessage {
   countDone: boolean;
   /** 保存してある表示の好み。読み直しでは Webview は使わない */
   preferences: ViewPreferences;
+  /** 配色のテーマ（設定から） */
+  colorTheme: ColorTheme;
   /** 開いたときの表示行数（設定から）。0 は All。読み直しでは Webview は使わない */
   peekSize: number;
   /** 翻訳の表（vscode.l10n.bundle）。英語のときは無い */
@@ -141,4 +147,6 @@ export type HostMessage =
     }
   | { type: 'contextCommand'; command: ContextCommand; row: number; column: number }
   | { type: 'fileChanged' }
+  /** 設定の配色のテーマが変わった */
+  | { type: 'colorTheme'; theme: ColorTheme }
   | { type: 'error'; message: string };

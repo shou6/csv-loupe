@@ -61,5 +61,9 @@
   "Sorting…": "並べ替え中…",
   "Sorting is available after row counting finishes.": "並べ替えは、行数を数え終えると使えます。",
   "Sorting is available for files with up to {0} rows.": "並べ替えは、{0} 行までのファイルで使えます。",
-  "Click to sort": "クリックで並べ替え（昇順 → 降順 → 元の順）"
+  "Click to sort": "クリックで並べ替え（昇順 → 降順 → 元の順）",
+  "Color Theme": "配色",
+  "Purple": "紫",
+  "Teal": "青緑",
+  "VS Code Theme": "VS Code のテーマ"
 }

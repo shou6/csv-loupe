@@ -1,5 +1,6 @@
 import { DELIMITERS, delimiterChar } from '../core/csv/delimiter';
 import { MAX_HEADER_ROW } from '../core/csv/header';
+import { COLOR_THEMES, ColorTheme, DEFAULT_COLOR_THEME } from '../core/view/colorTheme';
 import { formatRecord } from '../core/csv/format';
 import {
   ContextCommand,
@@ -54,6 +55,8 @@ interface State {
   sort: (SortState & { sortId: number }) | undefined;
   /** 並べ替え中の列。終わるまで見出しに印を出す */
   sorting: number | undefined;
+  /** 配色のテーマ */
+  colorTheme: ColorTheme;
 }
 
 const state: State = {
@@ -71,6 +74,7 @@ const state: State = {
   hidden: new Set(),
   sort: undefined,
   sorting: undefined,
+  colorTheme: DEFAULT_COLOR_THEME,
 };
 
 /** Row → 行のデータ */
@@ -708,7 +712,7 @@ function renderToolbar(): void {
   });
   toolbar.replaceChildren(
     info,
-    el('div', { className: 'controls' }, sizes, columnsButton, wrap, record),
+    el('div', { className: 'controls' }, sizes, columnsButton, wrap, record, colorThemeSelect()),
     el(
       'div',
       { className: 'find-row-bar' },
@@ -770,6 +774,45 @@ function delimiterSelect(init: InitMessage): HTMLElement {
   return el('label', { className: 'picker' }, el('span', { text: t('Delimiter') }), select);
 }
 
+function colorThemeLabel(theme: ColorTheme): string {
+  switch (theme) {
+    case 'purple':
+      return t('Purple');
+    case 'teal':
+      return t('Teal');
+    case 'vscode':
+      return t('VS Code Theme');
+  }
+}
+
+/** 配色のテーマを画面に当てる。CSS は body の data-color-theme で色を切り替える */
+function applyColorTheme(theme: ColorTheme): void {
+  state.colorTheme = theme;
+  document.body.dataset.colorTheme = theme;
+}
+
+/** 配色のテーマの切り替え。選んだテーマは設定に保存し、ほかのエディタにも反映される */
+function colorThemeSelect(): HTMLElement {
+  const select = el(
+    'select',
+    {
+      attrs: { 'aria-label': t('Color Theme') },
+      on: {
+        change: () => {
+          const theme = select.value as ColorTheme;
+          applyColorTheme(theme);
+          post({ type: 'setColorTheme', theme });
+        },
+      },
+    },
+    ...COLOR_THEMES.map((theme) =>
+      el('option', { text: colorThemeLabel(theme), attrs: { value: theme } })
+    )
+  );
+  select.value = state.colorTheme;
+  return el('label', { className: 'picker' }, el('span', { text: t('Color Theme') }), select);
+}
+
 /** ヘッダーの行（なし / 1〜10 行目）の表示と切り替え。判別に確信がなければ ? を付けて目立たせる */
 function headerSelect(init: InitMessage): HTMLElement {
   const mark = init.headerConfident ? '' : '?';
@@ -827,6 +870,7 @@ function renderBanners(): void {
 
 function onInit(message: InitMessage): void {
   t = createTranslator(message.l10n);
+  applyColorTheme(message.colorTheme);
   grid.whitespaceTitle = t('The value has spaces at the start or end.');
   grid.sortTitle = t('Click to sort');
   grid.sortingTitle = t('Sorting…');
@@ -983,6 +1027,10 @@ function onMessage(message: HostMessage): void {
     case 'fileChanged':
       state.fileChanged = true;
       renderBanners();
+      return;
+    case 'colorTheme':
+      applyColorTheme(message.theme);
+      renderToolbar();
       return;
     case 'error':
       state.error = message.message;

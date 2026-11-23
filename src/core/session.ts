@@ -1,5 +1,6 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
+import { ColorTheme, colorThemeFromSetting } from './view/colorTheme';
 import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
@@ -49,6 +50,10 @@ export interface SessionEnvironment {
   /** 保存してある表示の好み（全ファイル共通） */
   preferences(): ViewPreferences;
   savePreferences(preferences: Partial<ViewPreferences>): Promise<void>;
+  /** 設定の配色のテーマ（全ファイル共通） */
+  colorTheme(): ColorTheme;
+  /** 配色のテーマを設定に保存する */
+  saveColorTheme(theme: ColorTheme): Promise<void>;
 }
 
 /** 読み込んだファイルの状態。読み直すたびに作り直す */
@@ -197,6 +202,11 @@ export class CsvSession {
         case 'reload':
           await this.load();
           break;
+        case 'setColorTheme':
+          if (colorThemeFromSetting(message.theme) === message.theme) {
+            await this.env.saveColorTheme(message.theme);
+          }
+          break;
         case 'copy':
           await this.env.copy(message.text);
           break;
@@ -220,6 +230,15 @@ export class CsvSession {
   /** 右クリックメニューのコマンド。処理は表示中のデータを持つ Webview が行う */
   contextCommand(command: ContextCommand, row: number, column: number): void {
     this.env.post({ type: 'contextCommand', command, row, column });
+  }
+
+  /** 設定の配色のテーマが変わったとき。Webview に知らせ、送り直す init も新しいテーマにする */
+  colorThemeChanged(): void {
+    const theme = this.env.colorTheme();
+    if (this.loaded) {
+      this.loaded.init = { ...this.loaded.init, colorTheme: theme };
+    }
+    this.env.post({ type: 'colorTheme', theme });
   }
 
   fileChanged(): void {
@@ -438,6 +457,7 @@ export class CsvSession {
           rowsCounted: initial.rows.length,
           countDone: initial.complete,
           preferences: this.env.preferences(),
+          colorTheme: this.env.colorTheme(),
           peekSize: this.env.peekSize ?? DEFAULT_PEEK_SIZE,
           l10n: this.env.l10n,
         },

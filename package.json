@@ -92,6 +92,21 @@
           ],
           "default": "10",
           "markdownDescription": "%config.initialRowCount%"
+        },
+        "csvLoupe.colorTheme": {
+          "type": "string",
+          "enum": [
+            "purple",
+            "teal",
+            "vscode"
+          ],
+          "enumDescriptions": [
+            "%config.colorTheme.purple%",
+            "%config.colorTheme.teal%",
+            "%config.colorTheme.vscode%"
+          ],
+          "default": "purple",
+          "markdownDescription": "%config.colorTheme%"
         }
       }
     },

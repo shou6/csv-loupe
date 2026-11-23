@@ -4,6 +4,7 @@ import { EncodingId, HostMessage, InitMessage, ViewPreferences } from '../../cor
 import { CsvSession, SessionEnvironment } from '../../core/session';
 import { ByteSource } from '../../core/source/byteSource';
 import { MemorySource } from '../../core/source/memorySource';
+import { ColorTheme } from '../../core/view/colorTheme';
 import { cp932, utf8 } from '../support/bytes';
 
 function csv(rows: number): string {
@@ -21,6 +22,8 @@ class FakeEnvironment implements SessionEnvironment {
   readonly opened: { line: number; encoding: EncodingId }[] = [];
   opens = 0;
   stored: ViewPreferences = { hideEmptyValues: false, recordViewWidth: null };
+  theme: ColorTheme = 'teal';
+  readonly savedThemes: ColorTheme[] = [];
   readonly saved: Partial<ViewPreferences>[] = [];
   peekSize: number | undefined = undefined;
   l10n: Record<string, string> | undefined = { Find: '検索' };
@@ -61,6 +64,15 @@ class FakeEnvironment implements SessionEnvironment {
   savePreferences(preferences: Partial<ViewPreferences>): Promise<void> {
     this.saved.push(preferences);
     this.stored = { ...this.stored, ...preferences };
+    return Promise.resolve();
+  }
+
+  colorTheme(): ColorTheme {
+    return this.theme;
+  }
+
+  saveColorTheme(theme: ColorTheme): Promise<void> {
+    this.savedThemes.push(theme);
     return Promise.resolve();
   }
 
@@ -293,6 +305,36 @@ suite('CsvSession', () => {
       env.of('findProgress').flatMap((m) => m.hits.map((h) => [h.row, h.column])),
       [[1, 0]]
     );
+    await session.dispose();
+  });
+
+  test('開くと、設定の配色のテーマを init で送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    assert.strictEqual(env.lastInit().colorTheme, 'teal');
+    await session.dispose();
+  });
+
+  test('画面でテーマを選ぶと保存する。知らない値は保存しない', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'setColorTheme', theme: 'vscode' });
+    await session.handle({ type: 'setColorTheme', theme: 'red' as ColorTheme });
+    assert.deepStrictEqual(env.savedThemes, ['vscode']);
+    await session.dispose();
+  });
+
+  test('設定のテーマが変わったら Webview に知らせ、読み直しでも新しいテーマを送る', async () => {
+    const env = new FakeEnvironment(utf8(csv(3)));
+    const session = new CsvSession(env);
+    await session.start();
+    env.theme = 'purple';
+    session.colorThemeChanged();
+    assert.deepStrictEqual(env.of('colorTheme'), [{ type: 'colorTheme', theme: 'purple' }]);
+    await session.handle({ type: 'ready' });
+    assert.strictEqual(env.lastInit().colorTheme, 'purple');
     await session.dispose();
   });
 

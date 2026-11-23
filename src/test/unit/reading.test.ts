@@ -248,7 +248,12 @@ suite('readInitial', () => {
   });
 
   test('ヘッダーを 2 行目にすると、1 行目を除き 3 行目を Row 1 にする', async () => {
-    const result = await readInitial(new MemorySource(utf8('title\nid,v\n1,a\n2,b\n')), UTF8, 10, 2);
+    const result = await readInitial(
+      new MemorySource(utf8('title\nid,v\n1,a\n2,b\n')),
+      UTF8,
+      10,
+      2
+    );
     assert.deepStrictEqual(result, {
       header: ['id', 'v'],
       rows: [

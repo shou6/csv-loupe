@@ -1,5 +1,6 @@
 import { FindHit, FindQuery, HostMessage } from '../core/protocol';
 import { Translate } from '../core/translate';
+import { findKeyAction, findStatusText } from '../core/view/findBar';
 import { el } from './dom';
 
 type FindProgressMessage = Extract<HostMessage, { type: 'findProgress' }>;
@@ -12,29 +13,31 @@ export interface FindCallbacks {
   cancel(): void;
   /** 一致したセルへ移動する */
   jump(hit: FindHit): void;
-  columnName(column: number): string;
   /** 検索をリセットしたとき（強調表示を消すために表を描き直す） */
   cleared(): void;
+  /** 絞り込みに使う検索が変わったとき（filterSearch() の値が変わりうる） */
+  filterChanged(): void;
   translate(): Translate;
 }
 
 /**
- * 検索欄と結果の一覧。一致の件数だけでなく、どの Row のどの列にあるかを一覧で見せる。
+ * 検索バー。一致したセルは表の中で強調し、Enter・↓・F3 などで次の一致へ移る。
+ * 「一致した行だけ表示」をオンにすると、検索を終えた時点で表を絞り込む。
  * 検索は拡張機能ホスト（Worker）が行い、結果を少しずつ送ってくる。
  */
 export class FindPanel {
   readonly bar: HTMLElement;
-  readonly results: HTMLElement;
   private readonly input: HTMLInputElement;
   private readonly caseButton: HTMLButtonElement;
   private readonly wholeButton: HTMLButtonElement;
+  private readonly filterButton: HTMLButtonElement;
   private readonly status: HTMLElement;
-  private readonly list: HTMLElement;
   private readonly prevButton: HTMLButtonElement;
   private readonly nextButton: HTMLButtonElement;
   private readonly clearButton: HTMLButtonElement;
   private caseSensitive = false;
   private wholeCell = false;
+  private filterOn = false;
   private searchId = 0;
   private lastQuery: FindQuery | undefined;
   private hits: FindHit[] = [];
@@ -68,9 +71,13 @@ export class FindPanel {
       text: '[ab]',
       on: { click: () => this.toggle('whole') },
     });
+    this.filterButton = el('button', {
+      className: 'toggle filter-toggle',
+      on: { click: () => this.toggleFilter() },
+    });
     this.status = el('span', { className: 'find-status', attrs: { 'aria-live': 'polite' } });
-    this.prevButton = el('button', { text: '↑', on: { click: () => this.move(-1) } });
-    this.nextButton = el('button', { text: '↓', on: { click: () => this.move(1) } });
+    this.prevButton = el('button', { text: '↑', on: { click: () => this.previous() } });
+    this.nextButton = el('button', { text: '↓', on: { click: () => this.next() } });
     this.clearButton = el('button', {
       className: 'toggle',
       text: '×',
@@ -82,19 +89,41 @@ export class FindPanel {
       this.input,
       this.caseButton,
       this.wholeButton,
+      this.filterButton,
       this.prevButton,
       this.nextButton,
       this.clearButton,
       this.status
     );
-    this.list = el('div', { className: 'find-list', attrs: { role: 'listbox' } });
-    this.results = el('div', { className: 'find-results', attrs: { hidden: '' } }, this.list);
     this.render();
   }
 
   focus(): void {
     this.input.focus();
     this.input.select();
+  }
+
+  /** 次の一致へ移る */
+  next(): void {
+    this.move(1);
+  }
+
+  /** 前の一致へ移る */
+  previous(): void {
+    this.move(-1);
+  }
+
+  /**
+   * 絞り込みに使う検索の番号。「一致した行だけ表示」がオンで、検索を終えているときだけ返す。
+   * それ以外は null（絞り込まない）
+   */
+  filterSearch(): number | null {
+    return this.filterOn && this.lastQuery && this.done ? this.searchId : null;
+  }
+
+  /** 検索中で、絞り込みを待っているか */
+  filterPending(): boolean {
+    return this.filterOn && this.lastQuery !== undefined && !this.done;
   }
 
   /** Find Same Value。セル全体の一致で、大文字と小文字を区別して探す */
@@ -105,7 +134,7 @@ export class FindPanel {
     this.run();
   }
 
-  /** 検索のリセット。検索語、設定、強調表示、一覧を消し、実行中の検索を止める */
+  /** 検索のリセット。検索語、設定、強調表示を消し、実行中の検索を止める。絞り込みも解く */
   clear(): void {
     clearTimeout(this.timer);
     this.callbacks.cancel();
@@ -117,9 +146,10 @@ export class FindPanel {
     this.clearResults();
     this.render();
     this.callbacks.cleared();
+    this.callbacks.filterChanged();
   }
 
-  /** ファイルを読み直したとき。結果は古くなるので消す（検索語は残す） */
+  /** ファイルを読み直したとき。結果は古くなるので消す（検索語と絞り込みの切り替えは残す） */
   reset(): void {
     this.callbacks.cancel();
     this.lastQuery = undefined;
@@ -145,17 +175,28 @@ export class FindPanel {
       this.hits.push(hit);
       this.hitKeys.add(hit.row + ':' + hit.column);
     }
-    this.appendItems(message.hits);
     this.total = message.total;
     this.done = message.done;
     this.truncated = message.truncated;
     this.percent =
       message.fileSize > 0 ? Math.floor((message.scannedBytes / message.fileSize) * 100) : 100;
-    if (first) {
+    // 絞り込みのときは、絞り込んでから最初の一致へ移る（表示の位置が変わるため）
+    if (first && !this.filterOn) {
       this.select(0);
     }
     this.render();
+    if (message.done) {
+      this.callbacks.filterChanged();
+    }
     return true;
+  }
+
+  /** 絞り込みを変えたあと、選んでいる一致（無ければ最初の一致）へ移る */
+  revealCurrentMatch(): void {
+    if (this.hits.length > 0) {
+      this.select(Math.max(0, this.current));
+      this.render();
+    }
   }
 
   render(): void {
@@ -164,6 +205,8 @@ export class FindPanel {
     this.input.setAttribute('aria-label', t('Find'));
     this.caseButton.title = t('Match Case');
     this.wholeButton.title = t('Match Whole Cell');
+    this.filterButton.textContent = t('Filter');
+    this.filterButton.title = t('Show Only Matching Rows');
     this.prevButton.title = t('Previous Match');
     this.nextButton.title = t('Next Match');
     this.clearButton.title = t('Clear Search (Esc)');
@@ -171,35 +214,25 @@ export class FindPanel {
     for (const [button, on] of [
       [this.caseButton, this.caseSensitive],
       [this.wholeButton, this.wholeCell],
+      [this.filterButton, this.filterOn],
     ] as const) {
       button.classList.toggle('selected', on);
       button.setAttribute('aria-pressed', String(on));
     }
     this.prevButton.disabled = this.hits.length === 0;
     this.nextButton.disabled = this.hits.length === 0;
-    this.status.textContent = this.statusText(t);
-    this.results.hidden = this.hits.length === 0;
-  }
-
-  private statusText(t: Translate): string {
-    if (!this.lastQuery) {
-      return '';
-    }
-    const total = this.total.toLocaleString('en-US');
-    let text: string;
-    if (this.total === 0) {
-      text = this.done ? t('No results') : '';
-    } else if (this.current >= 0) {
-      text = t('{0} of {1}', (this.current + 1).toLocaleString('en-US'), total);
-    } else {
-      text = this.total === 1 ? t('1 match') : t('{0} matches', total);
-    }
-    if (!this.done) {
-      text = (text ? text + ' ' : '') + t('(searching… {0}%)', String(this.percent));
-    } else if (this.truncated) {
-      text += ' ' + t('(list shows the first {0})', this.hits.length.toLocaleString('en-US'));
-    }
-    return text;
+    this.status.textContent = findStatusText(
+      {
+        total: this.total,
+        current: this.current,
+        stored: this.hits.length,
+        done: this.done,
+        truncated: this.truncated,
+        percent: this.percent,
+      },
+      t,
+      this.lastQuery !== undefined
+    );
   }
 
   private toggle(option: 'case' | 'whole'): void {
@@ -211,17 +244,28 @@ export class FindPanel {
     this.run();
   }
 
+  private toggleFilter(): void {
+    this.filterOn = !this.filterOn;
+    this.render();
+    this.callbacks.filterChanged();
+  }
+
   private onKey(event: KeyboardEvent): void {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (this.sameAsLast()) {
-        this.move(event.shiftKey ? -1 : 1);
-      } else {
-        this.run();
-      }
-    } else if (event.key === 'Escape') {
-      event.preventDefault();
+    const action = findKeyAction(event, 'input');
+    if (!action) {
+      return;
+    }
+    event.preventDefault();
+    // F3 は window でも受けるので、二重に動かさない
+    event.stopPropagation();
+    if (action === 'clear') {
       this.clear();
+    } else if (event.key === 'Enter' && !this.sameAsLast()) {
+      this.run();
+    } else if (action === 'next') {
+      this.next();
+    } else {
+      this.previous();
     }
   }
 
@@ -246,6 +290,8 @@ export class FindPanel {
     if (query.text === '' && !query.wholeCell) {
       this.lastQuery = undefined;
       this.callbacks.cancel();
+      this.callbacks.cleared();
+      this.callbacks.filterChanged();
     } else {
       this.lastQuery = query;
       this.done = false;
@@ -262,7 +308,6 @@ export class FindPanel {
     this.truncated = false;
     this.percent = 0;
     this.current = -1;
-    this.list.replaceChildren();
   }
 
   private move(step: number): void {
@@ -275,39 +320,7 @@ export class FindPanel {
   }
 
   private select(index: number): void {
-    this.list.children[this.current]?.classList.remove('current');
     this.current = index;
-    const item = this.list.children[index];
-    item?.classList.add('current');
-    item?.scrollIntoView({ block: 'nearest' });
     this.callbacks.jump(this.hits[index]);
-  }
-
-  private appendItems(hits: FindHit[]): void {
-    const t = this.callbacks.translate();
-    const start = this.list.children.length;
-    this.list.append(
-      ...hits.map((hit, i) =>
-        el(
-          'div',
-          {
-            className: 'find-item',
-            attrs: { role: 'option' },
-            on: {
-              click: () => {
-                this.select(start + i);
-                this.render();
-              },
-            },
-          },
-          el('span', {
-            className: 'find-row',
-            text: t('Row {0}', hit.row.toLocaleString('en-US')),
-          }),
-          el('span', { className: 'find-column', text: this.callbacks.columnName(hit.column) }),
-          el('span', { className: 'find-value', text: hit.value.replace(/\r?\n/g, '↵') })
-        )
-      )
-    );
   }
 }

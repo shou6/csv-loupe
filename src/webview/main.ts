@@ -12,6 +12,7 @@ import {
   SortDirection,
 } from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
+import { findKeyAction } from '../core/view/findBar';
 import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { CellIndex, moveCell, moveKeyFor, stepRow } from '../core/view/keyboard';
@@ -55,6 +56,8 @@ interface State {
   sort: (SortState & { sortId: number }) | undefined;
   /** 並べ替え中の列。終わるまで見出しに印を出す */
   sorting: number | undefined;
+  /** 絞り込み（検索で一致した行だけ表示）。ホストが絞り込んでから設定する */
+  filtered: { count: number; truncated: boolean } | undefined;
   /** 配色のテーマ */
   colorTheme: ColorTheme;
 }
@@ -74,15 +77,19 @@ const state: State = {
   hidden: new Set(),
   sort: undefined,
   sorting: undefined,
+  filtered: undefined,
   colorTheme: DEFAULT_COLOR_THEME,
 };
 
 /** Row → 行のデータ */
 const cache = new Map<number, RowData>();
-/** ソート中の、表示の位置 → Row */
+/** 並べ替えか絞り込みをしているときの、表示の位置 → Row */
 const sortedRows = new Map<number, number>();
 let requestId = 0;
 let sortId = 0;
+let filterId = 0;
+/** ホストに絞り込みを頼んだ検索の番号。null は絞り込んでいない */
+let appliedFilter: number | null = null;
 /** 返事を待っている要求。1 つずつ送り、返事が来てから次を送る */
 let inFlight: { id: number } | undefined;
 let queued: { from: number; count: number } | undefined;
@@ -127,17 +134,27 @@ function basePosition(): number {
   return state.peekSize === 0 ? 1 : state.peekStart;
 }
 
+/** 並べ替えか絞り込みで、表示の順が元の順と違うか */
+function reordered(): boolean {
+  return state.sort !== undefined || state.filtered !== undefined;
+}
+
+/** 表示できる行の総数。絞り込み中は一致した行の数 */
+function totalRows(): number {
+  return state.filtered ? state.filtered.count : state.rowsCounted;
+}
+
 /** 表示中の範囲の行数 */
 function displayCount(): number {
   if (state.peekSize === 0) {
-    return state.rowsCounted;
+    return totalRows();
   }
-  return Math.max(0, Math.min(state.peekSize, state.rowsCounted - state.peekStart + 1));
+  return Math.max(0, Math.min(state.peekSize, totalRows() - state.peekStart + 1));
 }
 
 function rowAt(index: number): number | undefined {
   const position = basePosition() + index;
-  return state.sort ? sortedRows.get(position) : position;
+  return reordered() ? sortedRows.get(position) : position;
 }
 
 /** 選んだ行の Row と Source Line（元のファイルの行）を出す */
@@ -196,9 +213,9 @@ function tail(): void {
   }
   showNotice(undefined);
   if (state.peekSize === 0) {
-    grid.scrollToIndex(Math.max(0, state.rowsCounted - 1));
+    grid.scrollToIndex(Math.max(0, totalRows() - 1));
   } else {
-    state.peekStart = tailStart(state.rowsCounted, state.peekSize);
+    state.peekStart = tailStart(totalRows(), state.peekSize);
     grid.scrollToIndex(0);
   }
 }
@@ -328,8 +345,8 @@ const findPanel = new FindPanel({
   search: (searchId, query) => post({ type: 'find', searchId, query }),
   cancel: () => post({ type: 'cancelFind' }),
   jump: (hit) => jumpTo(hit.row, hit.column),
-  columnName,
   cleared: () => grid.refresh(),
+  filterChanged: () => syncFilter(),
   translate: () => t,
 });
 
@@ -344,7 +361,7 @@ function jumpTo(row: number, column: number): void {
     columnsChanged();
   }
   state.selected = { row, column };
-  if (state.sort) {
+  if (reordered()) {
     const id = ++requestId;
     pendingJumps.set(id, column);
     post({ type: 'locateRow', requestId: id, row });
@@ -378,7 +395,7 @@ function selectedIndex(): CellIndex | undefined {
     return undefined;
   }
   let index: number | undefined;
-  if (state.sort) {
+  if (reordered()) {
     for (const [position, row] of sortedRows) {
       if (row === selected.row) {
         index = position - basePosition();
@@ -457,7 +474,7 @@ function requestIndexes(fromIndex: number, count: number): void {
     requestId: inFlight.id,
     from: first,
     count: last - first + 1,
-    sortId: state.sort?.sortId,
+    sortId: reordered() ? sortId : undefined,
   });
 }
 
@@ -497,6 +514,47 @@ function toggleSort(column: number): void {
     return;
   }
   post({ type: 'sort', sortId: ++sortId, column, direction });
+}
+
+/**
+ * 検索バーの絞り込みの指定を、ホストに伝える。検索中は、前の絞り込みを保ったまま終わるのを待つ
+ */
+function syncFilter(): void {
+  if (findPanel.filterPending()) {
+    return;
+  }
+  const wanted = findPanel.filterSearch();
+  if (wanted === appliedFilter) {
+    return;
+  }
+  appliedFilter = wanted;
+  post({ type: 'filter', sortId: ++filterId, searchId: wanted });
+}
+
+function onFilterState(message: Extract<HostMessage, { type: 'filterState' }>): void {
+  if (message.sortId !== filterId) {
+    return;
+  }
+  state.filtered =
+    message.status === 'done' ? { count: message.count, truncated: message.truncated } : undefined;
+  if (message.status === 'cleared') {
+    appliedFilter = null;
+  }
+  showNotice(
+    state.filtered?.truncated
+      ? t('Showing the first {0} matching rows.', state.filtered.count.toLocaleString('en-US'))
+      : undefined
+  );
+  sortedRows.clear();
+  // 絞り込む前の順で要求した行の返事は捨てる
+  inFlight = undefined;
+  queued = undefined;
+  state.peekStart = 1;
+  renderToolbar();
+  grid.scrollToIndex(0);
+  renderRecord();
+  renderStatus();
+  findPanel.revealCurrentMatch();
 }
 
 function copyCell(cell: CellPosition): void {
@@ -909,6 +967,8 @@ function onInit(message: InitMessage): void {
   pendingSelect = undefined;
   state.sort = undefined;
   state.sorting = undefined;
+  state.filtered = undefined;
+  appliedFilter = null;
   notice = undefined;
   findPanel.reset();
   cache.clear();
@@ -1017,12 +1077,21 @@ function onMessage(message: HostMessage): void {
         onSortState(message);
       }
       return;
+    case 'filterState':
+      if (message.generation === state.init?.generation) {
+        onFilterState(message);
+      }
+      return;
     case 'rowLocated': {
       const column = pendingJumps.get(message.requestId);
       if (column === undefined || message.generation !== state.init?.generation) {
         return;
       }
       pendingJumps.delete(message.requestId);
+      if (message.position === 0) {
+        showNotice(t('Row {0} is not shown while filtering.', message.row.toLocaleString('en-US')));
+        return;
+      }
       revealPosition(message.position, column);
       return;
     }
@@ -1058,6 +1127,16 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
     event.preventDefault();
     findPanel.focus();
+    return;
+  }
+  const action = findKeyAction(event, 'global');
+  if (action === 'next' || action === 'previous') {
+    event.preventDefault();
+    if (action === 'next') {
+      findPanel.next();
+    } else {
+      findPanel.previous();
+    }
   }
 });
 
@@ -1074,7 +1153,7 @@ grid.element.addEventListener('keydown', (event) => {
 });
 
 mainArea.append(grid.element, recordSplitter, recordView.element);
-app.replaceChildren(toolbar, columnsPanel, banners, mainArea, findPanel.results, statusBar);
+app.replaceChildren(toolbar, columnsPanel, banners, mainArea, statusBar);
 renderStatus();
 onHostMessage(onMessage);
 renderBanners();

@@ -1,6 +1,7 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
 import { ColorTheme, colorThemeFromSetting } from './view/colorTheme';
+import { displayOrder, positionLookup } from './view/displayOrder';
 import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
@@ -33,6 +34,8 @@ const MAX_ROWS_PER_REQUEST = 1000;
 export const FIND_LIMIT = 10_000;
 /** ソートできる行数の上限 */
 export const SORT_LIMIT = 1_000_000;
+/** 絞り込める行数の上限 */
+export const FILTER_LIMIT = 1_000_000;
 
 /** セッションが頼る外側の機能。拡張機能ホストでは vscode の API で、テストではフェイクで実装する */
 export interface SessionEnvironment {
@@ -69,8 +72,28 @@ interface Loaded {
   rowsCounted: number;
   countDone: boolean;
   init: InitMessage;
-  /** ソート中の順序。order[i] は表示の位置 i + 1 の Row、position[r - 1] は Row r の表示の位置 */
-  sort?: { column: number; direction: SortDirection; order: Uint32Array; position: Uint32Array };
+  /** ソートした順序。order[i] は並べ替えた後の i + 1 番目の Row */
+  sort?: { column: number; direction: SortDirection; order: Uint32Array };
+  /** 絞り込みで残す Row（Row の順） */
+  filter?: Uint32Array;
+  /**
+   * 並べ替えと絞り込みを合わせた表示の順。order[i] は表示の位置 i + 1 の Row、
+   * position(r) は Row r の表示の位置（0 は表示していない）。どちらもしていなければ無い
+   */
+  view?: { order: Uint32Array; position: (row: number) => number };
+  /** 最後に始めた検索の、一致した行 */
+  search?: { searchId: number; rows: number[]; done: boolean; truncated: boolean };
+}
+
+/** 並べ替えと絞り込みから、表示の順を作り直す */
+function updateView(loaded: Loaded): void {
+  const order = displayOrder(loaded.sort?.order, loaded.filter);
+  if (!order) {
+    loaded.view = undefined;
+    return;
+  }
+  // 並べ替えていなければ、絞り込んだ行は Row の順
+  loaded.view = { order, position: positionLookup(order, loaded.sort === undefined) };
 }
 
 /** 近い Row をまとめて読むときの、1 回で読む範囲の上限 */
@@ -121,7 +144,7 @@ export class CsvSession {
 
   constructor(
     private readonly env: SessionEnvironment,
-    private readonly options: { sortLimit?: number } = {}
+    private readonly options: { sortLimit?: number; filterLimit?: number } = {}
   ) {}
 
   start(): Promise<void> {
@@ -173,14 +196,19 @@ export class CsvSession {
           break;
         case 'locateRow':
           if (loaded) {
-            const position = loaded.sort ? loaded.sort.position[message.row - 1] : message.row;
+            const position = loaded.view ? loaded.view.position(message.row) : message.row;
             this.env.post({
               type: 'rowLocated',
               generation: loaded.generation,
               requestId: message.requestId,
               row: message.row,
-              position: position ?? message.row,
+              position,
             });
+          }
+          break;
+        case 'filter':
+          if (loaded) {
+            this.filter(loaded, message.sortId, message.searchId);
           }
           break;
         case 'cancelFind':
@@ -269,7 +297,7 @@ export class CsvSession {
     from: number,
     count: number
   ): Promise<void> {
-    const order = loaded.sort?.order;
+    const order = loaded.view?.order;
     const positions: number[] = [];
     const wanted: number[] = [];
     if (order) {
@@ -321,6 +349,7 @@ export class CsvSession {
       });
     if (direction === null) {
       loaded.sort = undefined;
+      updateView(loaded);
       state('cleared');
       return;
     }
@@ -349,28 +378,46 @@ export class CsvSession {
           this.env.post({ type: 'error', message: message.message });
           state('cleared', null);
         } else if (message.kind === 'sortResult') {
-          const order = Uint32Array.from(message.rows);
-          const position = new Uint32Array(order.length);
-          order.forEach((row, i) => {
-            position[row - 1] = i + 1;
-          });
-          loaded.sort = { column, direction, order, position };
+          loaded.sort = { column, direction, order: Uint32Array.from(message.rows) };
+          updateView(loaded);
           state('done');
         }
       }
     );
   }
 
+  /** 検索 searchId の一致した行だけを表示する。最後に終えた検索でなければ絞り込みを解く */
+  private filter(loaded: Loaded, sortId: number, searchId: number | null): void {
+    const search = loaded.search;
+    if (searchId !== null && search?.searchId === searchId && search.done) {
+      loaded.filter = Uint32Array.from(search.rows);
+    } else {
+      loaded.filter = undefined;
+    }
+    updateView(loaded);
+    this.env.post({
+      type: 'filterState',
+      generation: loaded.generation,
+      sortId,
+      status: loaded.filter ? 'done' : 'cleared',
+      count: loaded.filter?.length ?? 0,
+      truncated: loaded.filter !== undefined && search !== undefined && search.truncated,
+    });
+  }
+
   /** 検索を始める。実行中の検索は止める */
   private find(loaded: Loaded, searchId: number, query: FindQuery): void {
     this.searchJob?.cancel();
     const fileSize = loaded.source.size;
+    const search = { searchId, rows: [] as number[], done: false, truncated: false };
+    loaded.search = search;
     this.searchJob = loaded.runner.run(
       {
         kind: 'search',
         format: loaded.format,
         query,
         limit: FIND_LIMIT,
+        rowLimit: this.options.filterLimit ?? FILTER_LIMIT,
         firstDataRecord: loaded.firstDataRecord,
       },
       (message) => {
@@ -381,6 +428,11 @@ export class CsvSession {
           this.env.post({ type: 'error', message: message.message });
         } else if (message.kind === 'searchProgress') {
           const p = message.progress;
+          for (const row of p.rows) {
+            search.rows.push(row);
+          }
+          search.done = p.done;
+          search.truncated = p.rowsTruncated;
           this.env.post({
             type: 'findProgress',
             generation: loaded.generation,

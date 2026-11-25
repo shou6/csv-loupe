@@ -59,12 +59,17 @@ export type WebviewMessage =
       requestId: number;
       from: number;
       count: number;
-      /** ソート中の要求。このとき from と count は表示の位置（1 始まり） */
+      /**
+       * 並べ替えか絞り込みをしているときの要求。このとき from と count は表示の位置（1 始まり）。
+       * 値は Webview が表示の順を変えるたびに増やす番号
+       */
       sortId?: number;
     }
   | { type: 'sort'; sortId: number; column: number; direction: SortDirection | null }
-  /** ソート中の表示の位置を尋ねる */
+  /** 並べ替えか絞り込みをしているときの表示の位置を尋ねる */
   | { type: 'locateRow'; requestId: number; row: number }
+  /** 検索 searchId の一致した行だけを表示する。null で絞り込みを解く */
+  | { type: 'filter'; sortId: number; searchId: number | null }
   | { type: 'find'; searchId: number; query: FindQuery }
   | { type: 'cancelFind' }
   | { type: 'setEncoding'; encoding: EncodingChoice }
@@ -133,7 +138,19 @@ export type HostMessage =
       column: number;
       direction: SortDirection | null;
     }
+  /** position は表示の位置。絞り込みで表示していない行なら 0 */
   | { type: 'rowLocated'; generation: number; requestId: number; row: number; position: number }
+  | {
+      type: 'filterState';
+      generation: number;
+      sortId: number;
+      /** done は絞り込んだ、cleared は絞り込みを解いた（絞り込めなかった） */
+      status: 'done' | 'cleared';
+      /** 絞り込んだ行数 */
+      count: number;
+      /** 一致した行が上限を超え、上限までの行で絞り込んだか */
+      truncated: boolean;
+    }
   | {
       type: 'findProgress';
       generation: number;

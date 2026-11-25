@@ -10,5 +10,10 @@
   "config.colorTheme": "表の配色のテーマ。ツールバーからも変えられる。開いているすべてのエディターに反映する。",
   "config.colorTheme.purple": "紫のアクセント（既定）。",
   "config.colorTheme.teal": "青緑のアクセント。",
+  "config.colorTheme.blue": "青のアクセント。",
+  "config.colorTheme.green": "緑のアクセント。",
+  "config.colorTheme.amber": "橙のアクセント。",
+  "config.colorTheme.rose": "ピンクのアクセント。",
+  "config.colorTheme.gray": "色味を抑えたグレーのアクセント。",
   "config.colorTheme.vscode": "アクセント色を使わず、VS Code のテーマの色に従う。"
 }

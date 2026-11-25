@@ -98,11 +98,21 @@
           "enum": [
             "purple",
             "teal",
+            "blue",
+            "green",
+            "amber",
+            "rose",
+            "gray",
             "vscode"
           ],
           "enumDescriptions": [
             "%config.colorTheme.purple%",
             "%config.colorTheme.teal%",
+            "%config.colorTheme.blue%",
+            "%config.colorTheme.green%",
+            "%config.colorTheme.amber%",
+            "%config.colorTheme.rose%",
+            "%config.colorTheme.gray%",
             "%config.colorTheme.vscode%"
           ],
           "default": "purple",

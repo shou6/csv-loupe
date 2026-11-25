@@ -10,5 +10,10 @@
   "config.colorTheme": "Color theme of the table. You can also change it from the toolbar. Applies to all open editors.",
   "config.colorTheme.purple": "Purple accent (default).",
   "config.colorTheme.teal": "Teal accent.",
+  "config.colorTheme.blue": "Blue accent.",
+  "config.colorTheme.green": "Green accent.",
+  "config.colorTheme.amber": "Amber accent.",
+  "config.colorTheme.rose": "Rose accent.",
+  "config.colorTheme.gray": "Gray accent, with little color.",
   "config.colorTheme.vscode": "Follow the colors of the VS Code theme, without an accent color."
 }

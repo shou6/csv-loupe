@@ -1,7 +1,7 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
 import { ColorTheme, colorThemeFromSetting } from './view/colorTheme';
-import { displayOrder } from './view/displayOrder';
+import { displayOrder, positionLookup } from './view/displayOrder';
 import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
@@ -78,9 +78,9 @@ interface Loaded {
   filter?: Uint32Array;
   /**
    * 並べ替えと絞り込みを合わせた表示の順。order[i] は表示の位置 i + 1 の Row、
-   * position[r - 1] は Row r の表示の位置（0 は表示していない）。どちらもしていなければ無い
+   * position(r) は Row r の表示の位置（0 は表示していない）。どちらもしていなければ無い
    */
-  view?: { order: Uint32Array; position: Uint32Array };
+  view?: { order: Uint32Array; position: (row: number) => number };
   /** 最後に始めた検索の、一致した行 */
   search?: { searchId: number; rows: number[]; done: boolean; truncated: boolean };
 }
@@ -92,16 +92,8 @@ function updateView(loaded: Loaded): void {
     loaded.view = undefined;
     return;
   }
-  let last = 0;
-  for (const row of order) {
-    last = Math.max(last, row);
-  }
-  // position[r - 1] は Row r の表示の位置。0 は表示していない
-  const position = new Uint32Array(last);
-  order.forEach((row, i) => {
-    position[row - 1] = i + 1;
-  });
-  loaded.view = { order, position };
+  // 並べ替えていなければ、絞り込んだ行は Row の順
+  loaded.view = { order, position: positionLookup(order, loaded.sort === undefined) };
 }
 
 /** 近い Row をまとめて読むときの、1 回で読む範囲の上限 */
@@ -204,9 +196,7 @@ export class CsvSession {
           break;
         case 'locateRow':
           if (loaded) {
-            const position = loaded.view
-              ? (loaded.view.position[message.row - 1] ?? 0)
-              : message.row;
+            const position = loaded.view ? loaded.view.position(message.row) : message.row;
             this.env.post({
               type: 'rowLocated',
               generation: loaded.generation,

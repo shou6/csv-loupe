@@ -19,7 +19,7 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 - **Table**: sticky header, row numbers, resizable columns, word wrap, and highlight of the selected cell and row. CSV Loupe trims leading and trailing spaces in cell values and shows a marker in their place.
 - **Sort**: click a column header to sort by that column, in ascending order, descending order, and then the original order.
 - **Columns**: show and hide columns from the column list on the toolbar. You can filter the list by column name.
-- **Find**: searches the whole file, including rows not shown yet, and lists where each value is (Row and column). Partial match and case-insensitive by default, with options for match case and whole cell. Clear the search with the × button or `Esc`.
+- **Find**: searches the whole file, including rows not shown yet, highlights the matches in the table, and moves between them. Partial match and case-insensitive by default, with options for match case and whole cell. Turn on **Filter** to show only the rows that match (you can still sort them). Row numbers stay the same as in the whole file. Clear the search with the × button or `Esc`.
 - **Find Same Value**: finds cells whose whole value matches the selected cell (case-sensitive), across all rows and columns.
 - **Record View**: shows one row vertically as column name and value pairs.
 - **Go to Row and Tail**: jump to a row number or to the last rows.
@@ -31,9 +31,9 @@ A viewer for developers who want to check what is inside a CSV or TSV file, incl
 
 ### Find
 
-Searches the whole file and lists each match by Row and column.
+Searches the whole file and highlights each match in the table.
 
-![Find with the list of matches](images/find.png)
+![Find with the matches highlighted](images/find.png)
 
 ### Record View
 
@@ -53,7 +53,7 @@ Opens a 1,000,000-row file (about 130 MB) without a confirmation prompt.
 2. Choose the number of rows to show (1 / 10 / 100 / All) from the toolbar.
 3. Right-click a cell for **Copy Cell**, **Copy Row**, **Find Same Value**, **Open Record View**, and **Open Source at Row**.
 
-- `Ctrl+F` (`Cmd+F`) moves to the Find box. `Enter` and `Shift+Enter` move to the next and previous match.
+- `Ctrl+F` (`Cmd+F`) moves to the Find box. `Enter`, `↓`, or `F3` moves to the next match, and `Shift+Enter`, `↑`, or `Shift+F3` to the previous one. `F3` and `Shift+F3` also work outside the Find box.
 - `Ctrl+C` (`Cmd+C`) copies the selected cell.
 - Double-click a cell, or press `Enter`, to open **Record View** for its row.
 - When the table has focus, move the selected cell with the keyboard. Moves stay within the rows shown, in the sorted order while sorted.

@@ -17,11 +17,17 @@ export interface SearchProgress {
   done: boolean;
   /** 一覧が上限に達し、それ以降の一致を一覧に入れていないか */
   truncated: boolean;
+  /** 前回の知らせ以降に見つけた、一致したセルのある Row（重複なし、Row の順） */
+  rows: number[];
+  /** Row が rowLimit に達し、それ以降の Row を入れていないか */
+  rowsTruncated: boolean;
 }
 
 export interface SearchOptions {
   /** 一覧に入れる一致の上限 */
   limit: number;
+  /** rows に入れる Row の上限。省くと上限なし */
+  rowLimit?: number;
   chunkSize?: number;
   /** 何チャンクごとに途中経過を知らせるか */
   reportEveryChunks?: number;
@@ -48,6 +54,10 @@ export async function searchRecords(
   let stored = 0;
   let total = 0;
   let truncated = false;
+  let rows: number[] = [];
+  let rowsStored = 0;
+  let rowsTruncated = false;
+  const rowLimit = options.rowLimit ?? Infinity;
   let record = 0;
   let chunks = 0;
   let stopped = false;
@@ -66,8 +76,18 @@ export async function searchRecords(
         return;
       }
       const cells = parseRecord(text, delimiter);
+      let rowMatched = false;
       for (let column = 0; column < cells.length; column++) {
         if (matcher.matches(cells[column])) {
+          if (!rowMatched) {
+            rowMatched = true;
+            if (rowsStored < rowLimit) {
+              rows.push(row);
+              rowsStored++;
+            } else {
+              rowsTruncated = true;
+            }
+          }
           total++;
           if (stored < options.limit) {
             hits.push({ row, column, value: matcher.excerpt(cells[column]) });
@@ -87,8 +107,17 @@ export async function searchRecords(
         }
         chunks++;
         if (chunks % reportEvery === 0 && end < source.size) {
-          options.onProgress({ hits, total, scannedBytes: end, done: false, truncated });
+          options.onProgress({
+            hits,
+            total,
+            scannedBytes: end,
+            done: false,
+            truncated,
+            rows,
+            rowsTruncated,
+          });
           hits = [];
+          rows = [];
         }
       },
     }
@@ -96,5 +125,13 @@ export async function searchRecords(
   if (stopped || options.shouldStop?.()) {
     return;
   }
-  options.onProgress({ hits, total, scannedBytes: source.size, done: true, truncated });
+  options.onProgress({
+    hits,
+    total,
+    scannedBytes: source.size,
+    done: true,
+    truncated,
+    rows,
+    rowsTruncated,
+  });
 }

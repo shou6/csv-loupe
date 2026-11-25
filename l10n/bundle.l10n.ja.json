@@ -29,11 +29,9 @@
   "Previous Match": "前の一致",
   "Next Match": "次の一致",
   "No results": "一致なし",
-  "{0} of {1}": "{1} 件中 {0} 件目",
   "1 match": "1 件",
   "{0} matches": "{0} 件",
   "(searching… {0}%)": "（検索中… {0}%）",
-  "(list shows the first {0})": "（一覧は先頭の {0} 件）",
   "Row {0} can be shown after row counting finishes.": "行 {0} は、行数を数え終えると表示できます。",
   "Select a cell to see its position.": "セルを選ぶと、その位置を表示します。",
   "Open Source at Row": "元のファイルの該当行を開く",
@@ -66,5 +64,10 @@
   "Color Theme": "配色",
   "Purple": "紫",
   "Teal": "青緑",
-  "VS Code Theme": "VS Code のテーマ"
+  "VS Code Theme": "VS Code のテーマ",
+  "(moves through the first {0})": "（移動できるのは最初の {0} 件）",
+  "Filter": "絞り込み",
+  "Show Only Matching Rows": "一致した行だけ表示",
+  "Showing the first {0} matching rows.": "一致した行のうち、最初の {0} 行を表示しています。",
+  "Row {0} is not shown while filtering.": "絞り込み中のため、Row {0} は表示されていません。"
 }

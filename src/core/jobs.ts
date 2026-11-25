@@ -13,6 +13,8 @@ export type Job =
       format: CsvFormat;
       query: FindQuery;
       limit: number;
+      /** 絞り込みに使う Row の上限 */
+      rowLimit?: number;
       /** Row 1 にあたるレコードの番号（ヘッダーありなら 1、なしなら 0） */
       firstDataRecord: number;
     }
@@ -71,6 +73,7 @@ export async function runJob(
     case 'search':
       await searchRecords(source, job.format, job.query, {
         limit: job.limit,
+        rowLimit: job.rowLimit,
         firstDataRecord: job.firstDataRecord,
         chunkSize: options.chunkSize,
         reportEveryChunks: options.reportEveryChunks,

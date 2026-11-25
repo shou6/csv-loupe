@@ -665,58 +665,6 @@ body.resizing-record {
   color: var(--loupe-accent-strong);
 }
 
-/* 検索の結果の一覧 */
-
-.find-results {
-  max-height: 30%;
-  overflow: auto;
-  background: var(--loupe-panel-bg);
-  border-top: 2px solid var(--loupe-accent);
-  font-family: var(--vscode-editor-font-family);
-  font-size: var(--vscode-editor-font-size);
-}
-
-.find-results[hidden] {
-  display: none;
-}
-
-.find-item {
-  display: grid;
-  grid-template-columns: 90px minmax(80px, 220px) 1fr;
-  gap: 16px;
-  padding: 2px 12px;
-  cursor: pointer;
-}
-
-.find-item:hover {
-  background: var(--loupe-row-alt);
-}
-
-.find-item.current {
-  color: var(--loupe-on-accent);
-  background: var(--loupe-accent);
-}
-
-.find-item span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.find-row {
-  color: var(--loupe-row-number-fg);
-}
-
-.find-column {
-  color: var(--loupe-header-fg);
-  font-weight: 600;
-}
-
-.find-item.current .find-row,
-.find-item.current .find-column {
-  color: inherit;
-}
-
 /* 下端の状態表示 */
 
 .status-bar {

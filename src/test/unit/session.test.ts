@@ -641,6 +641,141 @@ suite('CsvSession', () => {
     await session.dispose();
   });
 
+  test('検索の結果で絞り込むと、一致した行だけを表示の位置と一緒に返す', async () => {
+    const env = new FakeEnvironment(utf8('id,name\n1,tanaka\n2,sato\n3,tanaka\n4,tanaka sato\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'tanaka', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    await session.handle({ type: 'filter', sortId: 1, searchId: 1 });
+    assert.deepStrictEqual(env.of('filterState').pop(), {
+      type: 'filterState',
+      generation: env.lastInit().generation,
+      sortId: 1,
+      status: 'done',
+      count: 3,
+      truncated: false,
+    });
+    await session.handle({ type: 'requestRows', requestId: 2, from: 1, count: 10, sortId: 1 });
+    const rows = env.of('rows').pop();
+    assert.deepStrictEqual(
+      rows?.rows.map((r) => r.row),
+      [1, 3, 4]
+    );
+    assert.deepStrictEqual(rows?.positions, [1, 2, 3]);
+    await session.handle({ type: 'locateRow', requestId: 3, row: 3 });
+    assert.strictEqual(env.of('rowLocated').pop()?.position, 2);
+    // 絞り込みで表示していない行の位置は 0
+    await session.handle({ type: 'locateRow', requestId: 4, row: 2 });
+    assert.strictEqual(env.of('rowLocated').pop()?.position, 0);
+    await session.dispose();
+  });
+
+  test('絞り込み中に並べ替えると、並べ替えた順のうち一致した行だけを返す', async () => {
+    const env = new FakeEnvironment(utf8('id,name\n1,tanaka\n2,sato\n3,tanaka\n4,tanaka sato\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await waitUntil(() => countDone(env), '行数を数え終える');
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'tanaka', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    await session.handle({ type: 'filter', sortId: 1, searchId: 1 });
+    await session.handle({ type: 'sort', sortId: 2, column: 0, direction: 'desc' });
+    await waitUntil(() => env.of('sortState').some((m) => m.status === 'done'), 'ソートを終える');
+    await session.handle({ type: 'requestRows', requestId: 2, from: 1, count: 10, sortId: 2 });
+    assert.deepStrictEqual(
+      env
+        .of('rows')
+        .pop()
+        ?.rows.map((r) => r.row),
+      [4, 3, 1]
+    );
+    await session.handle({ type: 'locateRow', requestId: 3, row: 1 });
+    assert.strictEqual(env.of('rowLocated').pop()?.position, 3);
+    // 並べ替えを戻すと、一致した行を元の順で
+    await session.handle({ type: 'sort', sortId: 3, column: 0, direction: null });
+    await session.handle({ type: 'requestRows', requestId: 4, from: 1, count: 10, sortId: 3 });
+    assert.deepStrictEqual(
+      env
+        .of('rows')
+        .pop()
+        ?.rows.map((r) => r.row),
+      [1, 3, 4]
+    );
+    // 絞り込みを解くと、並べ替えも絞り込みもない元の表示
+    await session.handle({ type: 'filter', sortId: 4, searchId: null });
+    assert.deepStrictEqual(
+      [env.of('filterState').pop()?.status, env.of('filterState').pop()?.count],
+      ['cleared', 0]
+    );
+    await session.handle({ type: 'locateRow', requestId: 5, row: 2 });
+    assert.strictEqual(env.of('rowLocated').pop()?.position, 2);
+    await session.dispose();
+  });
+
+  test('並べ替え中に絞り込んでも、並べ替えた順を保つ', async () => {
+    const env = new FakeEnvironment(utf8('id,name\n1,tanaka\n2,sato\n3,tanaka\n4,tanaka sato\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await waitUntil(() => countDone(env), '行数を数え終える');
+    await session.handle({ type: 'sort', sortId: 1, column: 0, direction: 'desc' });
+    await waitUntil(() => env.of('sortState').some((m) => m.status === 'done'), 'ソートを終える');
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'sato', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    await session.handle({ type: 'filter', sortId: 2, searchId: 1 });
+    await session.handle({ type: 'requestRows', requestId: 2, from: 1, count: 10, sortId: 2 });
+    assert.deepStrictEqual(
+      env
+        .of('rows')
+        .pop()
+        ?.rows.map((r) => r.row),
+      [4, 2]
+    );
+    await session.dispose();
+  });
+
+  test('最後に終えた検索でなければ、絞り込まない', async () => {
+    const env = new FakeEnvironment(utf8('id,name\n1,tanaka\n2,sato\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'tanaka', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    await session.handle({ type: 'filter', sortId: 1, searchId: 2 });
+    assert.strictEqual(env.of('filterState').pop()?.status, 'cleared');
+    await session.dispose();
+  });
+
+  test('一致した行が上限を超えるときは、上限までの行で絞り込み、そのことを知らせる', async () => {
+    const env = new FakeEnvironment(utf8(csv(100)));
+    const session = new CsvSession(env, { filterLimit: 30 });
+    await session.start();
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'n', caseSensitive: false, wholeCell: false },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    await session.handle({ type: 'filter', sortId: 1, searchId: 1 });
+    const state = env.of('filterState').pop();
+    assert.deepStrictEqual([state?.status, state?.count, state?.truncated], ['done', 30, true]);
+    await session.dispose();
+  });
+
   test('行数を数え終える前や、行数が上限を超えるときはソートしない', async () => {
     const env = new FakeEnvironment(utf8(csv(1000)));
     const session = new CsvSession(env, { sortLimit: 500 });

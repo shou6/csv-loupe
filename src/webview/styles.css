@@ -54,6 +54,71 @@ body.vscode-light[data-color-theme='teal'] {
   --loupe-on-accent: #ffffff;
 }
 
+/* 青（blue） */
+body[data-color-theme='blue'] {
+  --loupe-accent: #60a5fa;
+  --loupe-accent-strong: #93c5fd;
+  --loupe-on-accent: #0b1a33;
+}
+
+body.vscode-light[data-color-theme='blue'] {
+  --loupe-accent: #2563eb;
+  --loupe-accent-strong: #1d4ed8;
+  --loupe-on-accent: #ffffff;
+}
+
+/* 緑（green） */
+body[data-color-theme='green'] {
+  --loupe-accent: #4ade80;
+  --loupe-accent-strong: #86efac;
+  --loupe-on-accent: #06260f;
+}
+
+body.vscode-light[data-color-theme='green'] {
+  --loupe-accent: #15803d;
+  --loupe-accent-strong: #166534;
+  --loupe-on-accent: #ffffff;
+}
+
+/* 橙（amber） */
+body[data-color-theme='amber'] {
+  --loupe-accent: #fbbf24;
+  --loupe-accent-strong: #fcd34d;
+  --loupe-on-accent: #2a1a00;
+}
+
+body.vscode-light[data-color-theme='amber'] {
+  --loupe-accent: #b45309;
+  --loupe-accent-strong: #92400e;
+  --loupe-on-accent: #ffffff;
+}
+
+/* ピンク（rose） */
+body[data-color-theme='rose'] {
+  --loupe-accent: #fb7185;
+  --loupe-accent-strong: #fda4af;
+  --loupe-on-accent: #3a0a14;
+}
+
+body.vscode-light[data-color-theme='rose'] {
+  --loupe-accent: #e11d48;
+  --loupe-accent-strong: #be123c;
+  --loupe-on-accent: #ffffff;
+}
+
+/* グレー（gray） */
+body[data-color-theme='gray'] {
+  --loupe-accent: #9ca3af;
+  --loupe-accent-strong: #d1d5db;
+  --loupe-on-accent: #111827;
+}
+
+body.vscode-light[data-color-theme='gray'] {
+  --loupe-accent: #4b5563;
+  --loupe-accent-strong: #374151;
+  --loupe-on-accent: #ffffff;
+}
+
 /* VS Code のテーマに従う（vscode）。独自のアクセント色を混ぜず、テーマの色を使う */
 body[data-color-theme='vscode'] {
   --loupe-accent: var(--vscode-button-background);

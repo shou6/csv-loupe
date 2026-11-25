@@ -841,6 +841,16 @@ function colorThemeLabel(theme: ColorTheme): string {
       return t('Purple');
     case 'teal':
       return t('Teal');
+    case 'blue':
+      return t('Blue');
+    case 'green':
+      return t('Green');
+    case 'amber':
+      return t('Amber');
+    case 'rose':
+      return t('Rose');
+    case 'gray':
+      return t('Gray');
     case 'vscode':
       return t('VS Code Theme');
   }

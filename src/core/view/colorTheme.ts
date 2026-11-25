@@ -1,5 +1,14 @@
 /** 配色のテーマ。設定 csvLoupe.colorTheme の値と同じ */
-export const COLOR_THEMES = ['purple', 'teal', 'vscode'] as const;
+export const COLOR_THEMES = [
+  'purple',
+  'teal',
+  'blue',
+  'green',
+  'amber',
+  'rose',
+  'gray',
+  'vscode',
+] as const;
 
 export type ColorTheme = (typeof COLOR_THEMES)[number];
 

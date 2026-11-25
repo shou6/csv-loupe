@@ -49,7 +49,11 @@ export interface ViewPreferences {
 
 /** 右クリックメニューのコマンド */
 export type ContextCommand =
-  'copyCell' | 'copyRow' | 'findSameValue' | 'openRecordView' | 'openSourceAtRow';
+  | 'copyCell'
+  | 'copyRow'
+  | 'findSameValue'
+  | 'openRecordView'
+  | 'openSourceAtRow';
 
 /** Webview → 拡張機能ホスト */
 export type WebviewMessage =
@@ -69,8 +73,11 @@ export type WebviewMessage =
   | { type: 'cancelFind' }
   | { type: 'setEncoding'; encoding: EncodingChoice }
   | { type: 'setDelimiter'; delimiter: DelimiterId }
-  /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし */
-  | { type: 'setHeader'; headerRow: number }
+  /**
+   * ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし。headerCount はヘッダーの行数で、
+   * 省くと前に選んだ行数を保つ
+   */
+  | { type: 'setHeader'; headerRow: number; headerCount?: number }
   | { type: 'reload' }
   /** ツールバーで選んだ配色のテーマを設定に保存する */
   | { type: 'setColorTheme'; theme: ColorTheme }
@@ -91,10 +98,14 @@ export interface InitMessage {
   delimiter: DelimiterId;
   /** ヘッダーのレコードの番号（1 始まり）。0 はヘッダーなし。それより上のレコードは表に出さない */
   headerRow: number;
+  /** ヘッダーの行数。ヘッダーなしなら 0 */
+  headerCount: number;
   /** ヘッダーの行の判別に確信があるか */
   headerConfident: boolean;
-  /** ヘッダー。ヘッダーなしのときは空 */
+  /** ヘッダー。複数行なら「上 / 下」の形でつないだもの。ヘッダーなしのときは空 */
   header: string[];
+  /** ヘッダーの各行のセル（見出しを段に積んで出すため）。ヘッダーなしのときは空 */
+  headerLines: string[][];
   /** 列の数（先頭の行のうち最も多いもの） */
   columnCount: number;
   /** 先頭の行（最大 100 行） */

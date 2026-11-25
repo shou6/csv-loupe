@@ -450,6 +450,19 @@ table.grid {
   padding-right: 14px;
 }
 
+/* 複数行のヘッダー。段を上下に積む */
+.grid th .label.stacked {
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+.grid th .label-line {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 20px;
+}
+
 .grid th .sort-mark {
   position: absolute;
   top: 0;

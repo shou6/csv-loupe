@@ -44,3 +44,18 @@ export function columnNames(
   }
   return names;
 }
+
+/**
+ * 見出しの段に出す文字。ヘッダーが複数行なら、その列の各行の値を上から順に返す。
+ * どの行にも値の無い列は、列名（name）を一番上の段に出す。1 行以下なら列名だけを返す
+ */
+export function headerLabelLines(lines: string[][], column: number, name: string): string[] {
+  if (lines.length <= 1) {
+    return [name];
+  }
+  const values = lines.map((line) => line[column] ?? '');
+  if (values.every((value) => value.trim() === '')) {
+    return [name, ...values.slice(1).map(() => '')];
+  }
+  return values;
+}

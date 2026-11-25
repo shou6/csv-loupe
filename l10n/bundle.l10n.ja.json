@@ -50,6 +50,7 @@
   "Reload": "再読み込み",
   "Column {0}": "列 {0}",
   "Header row": "ヘッダー",
+  "Header rows": "ヘッダーの行数",
   "None": "なし",
   "Record {0}": "{0} 行目",
   "Which row is the header was guessed. Change it if it looks wrong.": "ヘッダーの行は推定です。違っている場合は選び直してください。",

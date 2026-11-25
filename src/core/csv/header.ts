@@ -62,6 +62,29 @@ export function detectHeader(records: string[][]): HeaderDetection {
   return { hasHeader: headerVotes > dataVotes, confident: true };
 }
 
+/** ヘッダーにできる行数の上限 */
+export const MAX_HEADER_COUNT = 3;
+
+/**
+ * 複数の行の見出しを、列ごとに「上 / 下」の形でつなぐ。空の段は飛ばす。1 行ならそのまま返す
+ */
+export function combineHeaderLines(lines: string[][]): string[] {
+  if (lines.length <= 1) {
+    return lines[0] ? [...lines[0]] : [];
+  }
+  const count = Math.max(...lines.map((line) => line.length));
+  const names: string[] = [];
+  for (let column = 0; column < count; column++) {
+    names.push(
+      lines
+        .map((line) => line[column] ?? '')
+        .filter((value) => value.trim() !== '')
+        .join(' / ')
+    );
+  }
+  return names;
+}
+
 /** ヘッダーにできる最も下の行（ツールバーの選択肢の数） */
 export const MAX_HEADER_ROW = 10;
 

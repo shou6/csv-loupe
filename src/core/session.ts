@@ -1,7 +1,7 @@
 import { delimiterForFileName } from './csv/delimiter';
 import { DEFAULT_PEEK_SIZE } from './view/peekSize';
 import { ColorTheme, colorThemeFromSetting } from './view/colorTheme';
-import { detectHeaderRow, MAX_HEADER_ROW } from './csv/header';
+import { detectHeaderRow, MAX_HEADER_COUNT, MAX_HEADER_ROW } from './csv/header';
 import { CsvFormat } from './csv/types';
 import { bomLength, detectEncoding, resolveEncoding } from './encoding/detect';
 import { SparseIndex } from './index/sparseIndex';
@@ -20,7 +20,7 @@ import {
   WebviewMessage,
   ViewPreferences,
 } from './protocol';
-import { readHead, readRows, shapeInitial } from './read/rowReader';
+import { firstDataRecordOf, headerLines, readHead, readRows, shapeInitial } from './read/rowReader';
 import { ByteSource } from './source/byteSource';
 
 /** 開いた直後に送る行数 */
@@ -118,6 +118,8 @@ export class CsvSession {
   private encodingChoice: EncodingChoice | undefined;
   private delimiterChoice: DelimiterId | undefined;
   private headerChoice: number | undefined;
+  /** 画面で選んだヘッダーの行数 */
+  private headerCountChoice = 1;
 
   constructor(
     private readonly env: SessionEnvironment,
@@ -197,6 +199,12 @@ export class CsvSession {
           break;
         case 'setHeader':
           this.headerChoice = Math.max(0, Math.min(MAX_HEADER_ROW, Math.floor(message.headerRow)));
+          if (message.headerCount !== undefined) {
+            this.headerCountChoice = Math.max(
+              1,
+              Math.min(MAX_HEADER_COUNT, Math.floor(message.headerCount))
+            );
+          }
           await this.load();
           break;
         case 'reload':
@@ -420,13 +428,18 @@ export class CsvSession {
         delimiter: this.delimiterChoice ?? delimiterForFileName(this.env.fileName),
         dataStart: bomLength(detection.encoding, head),
       };
-      const headRecords = await readHead(source, format, INITIAL_ROWS + MAX_HEADER_ROW);
+      const headRecords = await readHead(
+        source,
+        format,
+        INITIAL_ROWS + MAX_HEADER_ROW + MAX_HEADER_COUNT - 1
+      );
       const header =
         this.headerChoice !== undefined
           ? { headerRow: this.headerChoice, confident: true }
           : detectHeaderRow(headRecords.records.map((record) => record.cells));
-      const initial = shapeInitial(headRecords, header.headerRow, INITIAL_ROWS);
-      const firstDataRecord = header.headerRow;
+      const headerCount = header.headerRow > 0 ? this.headerCountChoice : 0;
+      const initial = shapeInitial(headRecords, header.headerRow, INITIAL_ROWS, headerCount);
+      const firstDataRecord = firstDataRecordOf(header.headerRow, headerCount);
       if (generation !== this.generation) {
         await source.close();
         return;
@@ -450,8 +463,10 @@ export class CsvSession {
           encodingConfident: detection.confident,
           delimiter: format.delimiter,
           headerRow: header.headerRow,
+          headerCount,
           headerConfident: header.confident,
           header: initial.header,
+          headerLines: headerLines(headRecords, header.headerRow, headerCount),
           columnCount: Math.max(0, ...headRecords.records.map((record) => record.cells.length)),
           rows: initial.rows,
           rowsCounted: initial.rows.length,

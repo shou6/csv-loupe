@@ -3,6 +3,19 @@
 This file lists all notable changes to this extension.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0]
+
+### Added
+
+- Choose the number of header rows (1 to 3) from the toolbar, for files whose header spans several rows, such as files exported from Excel. The headings are stacked, and joined as "upper / lower" where a column name is needed.
+- Find: **Filter** toggle to show only the rows that match. Row numbers stay the same as in the whole file, and you can still sort the filtered rows.
+- Find: `↓` / `↑` in the Find box and `F3` / `Shift+F3` move to the next and previous match.
+- Color themes: blue, green, amber, rose, and gray.
+
+### Changed
+
+- Find no longer shows the list of matches below the table. Matches are highlighted in the table, and the Find box shows the position as "3 / 120".
+
 ## [0.3.0]
 
 ### Added

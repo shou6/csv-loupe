@@ -308,6 +308,84 @@ suite('CsvSession', () => {
     await session.dispose();
   });
 
+  test('ヘッダーを複数行にすると、見出しをつないで送り、その下から数え、読み、検索する', async () => {
+    let text = 'title\n売上,原価\n4月,4月\n';
+    for (let i = 1; i <= 300; i++) {
+      text += i + ',v' + i + '\n';
+    }
+    const env = new FakeEnvironment(utf8(text));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'setHeader', headerRow: 2, headerCount: 2 });
+    const init = env.lastInit();
+    assert.deepStrictEqual(
+      [init.headerRow, init.headerCount, init.headerConfident, init.header, init.headerLines],
+      [
+        2,
+        2,
+        true,
+        ['売上 / 4月', '原価 / 4月'],
+        [
+          ['売上', '原価'],
+          ['4月', '4月'],
+        ],
+      ]
+    );
+    assert.deepStrictEqual(init.rows[0], { row: 1, line: 4, cells: ['1', 'v1'] });
+    await waitUntil(() => countDone(env), '行数を数え終える');
+    assert.strictEqual(env.of('progress').pop()?.rowsCounted, 300);
+    await session.handle({ type: 'requestRows', requestId: 1, from: 300, count: 5 });
+    assert.deepStrictEqual(
+      env.of('rows')[0].rows.map((r) => [r.row, r.line, r.cells]),
+      [[300, 303, ['300', 'v300']]]
+    );
+    await session.handle({
+      type: 'find',
+      searchId: 1,
+      query: { text: 'v250', caseSensitive: true, wholeCell: true },
+    });
+    await waitUntil(() => env.of('findProgress').some((m) => m.done), '検索を終える');
+    assert.deepStrictEqual(
+      env.of('findProgress').flatMap((m) => m.hits.map((h) => [h.row, h.column])),
+      [[250, 1]]
+    );
+    await session.dispose();
+  });
+
+  test('開いた直後のヘッダーは 1 行。行数を省いた指定では、前に選んだ行数を保つ', async () => {
+    const env = new FakeEnvironment(utf8('a,b\nc,d\ne,f\n1,2\n3,4\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    assert.deepStrictEqual(
+      [env.lastInit().headerCount, env.lastInit().headerLines],
+      [1, [['a', 'b']]]
+    );
+    await session.handle({ type: 'setHeader', headerRow: 1, headerCount: 3 });
+    assert.deepStrictEqual(env.lastInit().header, ['a / c / e', 'b / d / f']);
+    await session.handle({ type: 'setHeader', headerRow: 2 });
+    assert.deepStrictEqual(
+      [env.lastInit().headerCount, env.lastInit().header, env.lastInit().rows[0].cells],
+      [3, ['c / e / 1', 'd / f / 2'], ['3', '4']]
+    );
+    await session.dispose();
+  });
+
+  test('ヘッダーの行数は 1〜3 行に収める。ヘッダーなしなら行数は 0 で、見出しの行は空', async () => {
+    const env = new FakeEnvironment(utf8('a,b\nc,d\ne,f\ng,h\n1,2\n'));
+    const session = new CsvSession(env);
+    await session.start();
+    await session.handle({ type: 'setHeader', headerRow: 1, headerCount: 5 });
+    assert.strictEqual(env.lastInit().headerCount, 3);
+    await session.handle({ type: 'setHeader', headerRow: 1, headerCount: 0 });
+    assert.strictEqual(env.lastInit().headerCount, 1);
+    await session.handle({ type: 'setHeader', headerRow: 0, headerCount: 2 });
+    assert.deepStrictEqual(
+      [env.lastInit().headerCount, env.lastInit().headerLines, env.lastInit().rows[0].cells],
+      [0, [], ['a', 'b']]
+    );
+    await session.dispose();
+  });
+
   test('開くと、設定の配色のテーマを init で送る', async () => {
     const env = new FakeEnvironment(utf8(csv(3)));
     const session = new CsvSession(env);

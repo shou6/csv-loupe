@@ -1,5 +1,11 @@
 import * as assert from 'assert';
-import { detectHeader, detectHeaderRow, MAX_HEADER_ROW } from '../../core/csv/header';
+import {
+  combineHeaderLines,
+  detectHeader,
+  detectHeaderRow,
+  MAX_HEADER_COUNT,
+  MAX_HEADER_ROW,
+} from '../../core/csv/header';
 
 suite('detectHeader', () => {
   test('数字の列の先頭だけが文字なら、ヘッダーありと判別する', () => {
@@ -146,5 +152,44 @@ suite('detectHeaderRow', () => {
     assert.deepStrictEqual(detectHeaderRow(records), { headerRow: 1, confident: false });
     assert.deepStrictEqual(detectHeaderRow([['a', 'b']]), { headerRow: 1, confident: false });
     assert.deepStrictEqual(detectHeaderRow([]), { headerRow: 1, confident: false });
+  });
+});
+
+suite('combineHeaderLines', () => {
+  test('複数の行の見出しを、列ごとに「上 / 下」の形でつなぐ', () => {
+    assert.deepStrictEqual(
+      combineHeaderLines([
+        ['売上', '売上', '原価'],
+        ['4月', '5月', '4月'],
+      ]),
+      ['売上 / 4月', '売上 / 5月', '原価 / 4月']
+    );
+  });
+
+  test('空の段は飛ばす', () => {
+    assert.deepStrictEqual(
+      combineHeaderLines([
+        ['売上', '', '原価', ''],
+        ['4月', '5月', ' ', ''],
+      ]),
+      ['売上 / 4月', '5月', '原価', '']
+    );
+  });
+
+  test('3 行でもつなぐ。行によって列の数が違ってもよい', () => {
+    assert.deepStrictEqual(combineHeaderLines([['a'], ['b', 'c'], ['d', 'e', 'f']]), [
+      'a / b / d',
+      'c / e',
+      'f',
+    ]);
+  });
+
+  test('1 行ならそのまま返す', () => {
+    assert.deepStrictEqual(combineHeaderLines([[' a ', '', 'b']]), [' a ', '', 'b']);
+    assert.deepStrictEqual(combineHeaderLines([]), []);
+  });
+
+  test('ヘッダーにできる行数は 3 行まで', () => {
+    assert.strictEqual(MAX_HEADER_COUNT, 3);
   });
 });

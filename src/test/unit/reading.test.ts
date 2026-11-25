@@ -264,6 +264,24 @@ suite('readInitial', () => {
     });
   });
 
+  test('ヘッダーを 2 行目から 2 行にすると、見出しをつなぎ、4 行目を Row 1 にする', async () => {
+    const result = await readInitial(
+      new MemorySource(utf8('title\n売上,原価\n4月,4月\n1,a\n2,b\n')),
+      UTF8,
+      10,
+      2,
+      2
+    );
+    assert.deepStrictEqual(result, {
+      header: ['売上 / 4月', '原価 / 4月'],
+      rows: [
+        { row: 1, line: 4, cells: ['1', 'a'] },
+        { row: 2, line: 5, cells: ['2', 'b'] },
+      ],
+      complete: true,
+    });
+  });
+
   test('区切り文字と文字コードに従う', async () => {
     const format: CsvFormat = { encoding: 'utf16le', delimiter: 'tab', dataStart: 0 };
     const result = await readInitial(new MemorySource(utf16le('名前\tx\n田中\ty\n')), format, 10);

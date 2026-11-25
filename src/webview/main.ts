@@ -1,5 +1,5 @@
 import { DELIMITERS, delimiterChar } from '../core/csv/delimiter';
-import { MAX_HEADER_ROW } from '../core/csv/header';
+import { MAX_HEADER_COUNT, MAX_HEADER_ROW } from '../core/csv/header';
 import { COLOR_THEMES, ColorTheme, DEFAULT_COLOR_THEME } from '../core/view/colorTheme';
 import { formatRecord } from '../core/csv/format';
 import {
@@ -13,7 +13,7 @@ import {
 } from '../core/protocol';
 import { createTranslator, Translate } from '../core/translate';
 import { findKeyAction } from '../core/view/findBar';
-import { columnNames, matchColumns, visibleColumns } from '../core/view/columns';
+import { columnNames, headerLabelLines, matchColumns, visibleColumns } from '../core/view/columns';
 import { delimiterLabel, encodingLabel, rowCountLabel } from '../core/view/labels';
 import { CellIndex, moveCell, moveKeyFor, stepRow } from '../core/view/keyboard';
 import { parseRowInput, tailStart } from '../core/view/navigation';
@@ -316,6 +316,8 @@ window.addEventListener('resize', () => applyRecordWidth());
 const grid = new GridView(
   {
     header: () => state.columns,
+    headerLines: (column) =>
+      headerLabelLines(state.init?.headerLines ?? [], column, state.columns[column] ?? ''),
     columns: shownColumns,
     displayCount,
     rowAt,
@@ -714,7 +716,8 @@ function renderToolbar(): void {
     }),
     encodingSelect(init),
     delimiterSelect(init),
-    headerSelect(init)
+    headerSelect(init),
+    headerCountSelect(init)
   );
   const sizes = el(
     'div',
@@ -881,6 +884,26 @@ function colorThemeSelect(): HTMLElement {
   return el('label', { className: 'picker' }, el('span', { text: t('Color Theme') }), select);
 }
 
+/** ヘッダーの行数（1〜3 行）の切り替え。ヘッダーなしのときは選べない */
+function headerCountSelect(init: InitMessage): HTMLElement {
+  const counts = Array.from({ length: MAX_HEADER_COUNT }, (_, i) => i + 1);
+  const select = el(
+    'select',
+    {
+      attrs: { 'aria-label': t('Header rows') },
+      on: {
+        change: () =>
+          post({ type: 'setHeader', headerRow: init.headerRow, headerCount: Number(select.value) }),
+      },
+    },
+    ...counts.map((count) => el('option', { text: String(count), attrs: { value: String(count) } }))
+  );
+  select.value = String(Math.max(1, init.headerCount));
+  select.disabled = init.headerRow === 0;
+  select.title = t('Header rows');
+  return el('label', { className: 'picker' }, el('span', { text: t('Header rows') }), select);
+}
+
 /** ヘッダーの行（なし / 1〜10 行目）の表示と切り替え。判別に確信がなければ ? を付けて目立たせる */
 function headerSelect(init: InitMessage): HTMLElement {
   const mark = init.headerConfident ? '' : '?';
@@ -890,7 +913,14 @@ function headerSelect(init: InitMessage): HTMLElement {
     {
       className: init.headerConfident ? '' : 'uncertain',
       attrs: { 'aria-label': t('Header row') },
-      on: { change: () => post({ type: 'setHeader', headerRow: Number(select.value) }) },
+      on: {
+        change: () =>
+          post({
+            type: 'setHeader',
+            headerRow: Number(select.value),
+            headerCount: Math.max(1, init.headerCount),
+          }),
+      },
     },
     ...rows.map((row) =>
       el('option', {

@@ -28,6 +28,8 @@ export interface SortState {
 export interface GridSource {
   /** 全列の列名 */
   header(): string[];
+  /** 見出しの段に出す文字（ヘッダーが複数行なら段ごと） */
+  headerLines(column: number): string[];
   /** 表に出す列の番号（元の順） */
   columns(): number[];
   /** 表に出す行の数 */
@@ -137,7 +139,7 @@ export class GridView {
             attrs: sorted ? { 'aria-sort': sorted === 'asc' ? 'ascending' : 'descending' } : {},
             on: { click: () => this.events.onHeaderClick(column) },
           },
-          el('span', { className: 'label', text: name }),
+          headerLabel(this.source.headerLines(column)),
           sorting === column
             ? el('span', { className: 'sort-mark', text: '…', title: this.sortingTitle })
             : el('span', {
@@ -442,4 +444,16 @@ export class GridView {
       this.events.onOpen(cell);
     }
   }
+}
+
+/** 見出しの文字。複数の段なら上下に積む。空の段も高さをそろえるために場所を取る */
+function headerLabel(lines: string[]): HTMLElement {
+  if (lines.length <= 1) {
+    return el('span', { className: 'label', text: lines[0] ?? '' });
+  }
+  return el(
+    'span',
+    { className: 'label stacked' },
+    ...lines.map((line) => el('span', { className: 'label-line', text: line || '\u00a0' }))
+  );
 }

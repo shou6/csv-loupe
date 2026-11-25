@@ -1,4 +1,5 @@
 import { delimiterChar } from '../csv/delimiter';
+import { combineHeaderLines } from '../csv/header';
 import { parseRecord, recordText } from '../csv/parser';
 import { forEachRecord } from '../csv/records';
 import { CsvFormat } from '../csv/types';
@@ -43,11 +44,17 @@ export async function readHead(
 
 /**
  * 先頭のレコードを、ヘッダーと先頭の maxRows 行に分ける。headerRow はヘッダーのレコードの番号
- * （1 始まり、0 はヘッダーなし）。ヘッダーより上のレコードは捨てる
+ * （1 始まり、0 はヘッダーなし）、headerCount はヘッダーの行数。複数行なら見出しをつなぐ。
+ * ヘッダーより上のレコードは捨てる
  */
-export function shapeInitial(head: HeadRecords, headerRow: number, maxRows: number): InitialRows {
-  const header = headerRow > 0 ? (head.records[headerRow - 1]?.cells ?? []) : [];
-  const data = head.records.slice(headerRow);
+export function shapeInitial(
+  head: HeadRecords,
+  headerRow: number,
+  maxRows: number,
+  headerCount = 1
+): InitialRows {
+  const header = headerRow > 0 ? combineHeaderLines(headerLines(head, headerRow, headerCount)) : [];
+  const data = head.records.slice(firstDataRecordOf(headerRow, headerCount));
   return {
     header,
     rows: data.slice(0, maxRows).map((record, i) => ({
@@ -67,10 +74,26 @@ export async function readInitial(
   source: ByteSource,
   format: CsvFormat,
   maxRows: number,
-  headerRow = 1
+  headerRow = 1,
+  headerCount = 1
 ): Promise<InitialRows> {
-  const head = await readHead(source, format, maxRows + headerRow);
-  return shapeInitial(head, headerRow, maxRows);
+  const head = await readHead(source, format, maxRows + firstDataRecordOf(headerRow, headerCount));
+  return shapeInitial(head, headerRow, maxRows, headerCount);
+}
+
+/** ヘッダーの各行のセル。ヘッダーなしなら空 */
+export function headerLines(head: HeadRecords, headerRow: number, headerCount: number): string[][] {
+  if (headerRow <= 0) {
+    return [];
+  }
+  return head.records
+    .slice(headerRow - 1, headerRow - 1 + headerCount)
+    .map((record) => record.cells);
+}
+
+/** Row 1 にあたるレコードの番号（0 始まり）。ヘッダーの最後の行の番号と同じで、ヘッダーなしなら 0 */
+export function firstDataRecordOf(headerRow: number, headerCount: number): number {
+  return headerRow > 0 ? headerRow - 1 + headerCount : 0;
 }
 
 /**

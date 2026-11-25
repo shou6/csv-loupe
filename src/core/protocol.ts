@@ -49,11 +49,7 @@ export interface ViewPreferences {
 
 /** 右クリックメニューのコマンド */
 export type ContextCommand =
-  | 'copyCell'
-  | 'copyRow'
-  | 'findSameValue'
-  | 'openRecordView'
-  | 'openSourceAtRow';
+  'copyCell' | 'copyRow' | 'findSameValue' | 'openRecordView' | 'openSourceAtRow';
 
 /** Webview → 拡張機能ホスト */
 export type WebviewMessage =

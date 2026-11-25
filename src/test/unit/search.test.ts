@@ -130,6 +130,37 @@ suite('searchRecords', () => {
     assert.deepStrictEqual([last.total, last.truncated], [50, true]);
   });
 
+  test('一致したセルのある Row を、重複なく Row の順に返す', async () => {
+    const { reports } = await search(utf8(text), query('tanaka'));
+    const last = reports[reports.length - 1];
+    assert.deepStrictEqual(
+      reports.flatMap((r) => r.rows),
+      [1, 2]
+    );
+    assert.strictEqual(last.rowsTruncated, false);
+  });
+
+  test('Row は rowLimit までにし、超えたら rowsTruncated を立てる', async () => {
+    let rows = 'v\n';
+    for (let i = 0; i < 50; i++) {
+      rows += 'match\n';
+    }
+    const reports: SearchProgress[] = [];
+    await searchRecords(new MemorySource(utf8(rows)), UTF8, query('match'), {
+      limit: 10_000,
+      rowLimit: 20,
+      chunkSize: 16,
+      reportEveryChunks: 1,
+      onProgress: (progress) => reports.push(progress),
+    });
+    const found = reports.flatMap((r) => r.rows);
+    assert.deepStrictEqual(
+      found,
+      Array.from({ length: 20 }, (_, i) => i + 1)
+    );
+    assert.strictEqual(reports[reports.length - 1].rowsTruncated, true);
+  });
+
   test('引用符を含む値も見つける', async () => {
     const { hits } = await search(utf8('a\n"say ""hi"""\n'), query('"hi"'));
     assert.deepStrictEqual(
